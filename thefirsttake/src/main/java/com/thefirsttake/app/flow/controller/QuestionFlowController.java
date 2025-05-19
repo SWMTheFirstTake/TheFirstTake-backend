@@ -96,15 +96,12 @@ public class QuestionFlowController {
     )
     @GetMapping("/user-info")
     public ApiResponse getUserInfo(HttpServletRequest request) {
-//        HttpSession session = request.getSession(); // 세션이 없으면 새로 생성
-//        String sessionId = session.getId();         // 세션 ID 가져오기
         String currentSession=getSessionId(request);
         List<QARequest> questions = List.of(
                 new QARequest("Q1. 나이대는 어떻게 되나요?", List.of("10대", "20대", "30대", "40대", "50대")),
                 new QARequest("Q2. 키는 어떻게 되나요?", List.of("165이하", "165~170", "170~175", "175~180", "180이상")),
                 new QARequest("Q3. 몸무게는 어떻게 되나요?", List.of("55~60", "60~65", "65~70", "70~75", "75~80", "80~85", "85~90", "90~95", "95~100"))
         );
-//        logger.info(redisTemplate.opsForValue().get(currentSession + ":prompt"+"1"));
         return new ApiResponse("success","세션 정보 조회 성공",questions);
     }
 
@@ -161,11 +158,7 @@ public class QuestionFlowController {
     )
     @PostMapping("/save-info")
     public ApiResponse setSaveInfo(@RequestBody List<SaveRequest> responses, HttpServletRequest request) {
-//        HttpSession session = request.getSession(); // 세션이 없으면 새로 생성
-//        String sessionId = session.getId();         // 세션 ID 가져오기
         String currentSession=getSessionId(request);
-//        System.out.println(curSession);
-
         String currentKey = currentSession + ":prompt";
         if (!Boolean.TRUE.equals(redisTemplate.hasKey(currentKey))) {
             String promptValue = "시나리오: 당신은 패션 큐레이터입니다. 사용자가 옷을 잘 모르기 때문에, 옷을 고를 때 최소한의 선택만 하도록 돕는 것이 목적입니다. 그래서 사용자가 원하는 취향을 유도하기 위해 질문과 선택지를 만들어야 합니다. 이전 질의응답과 비슷하지 않은 다음 질문을 자연스럽고 간단한 말투로 만들어주세요. 사용자는 패션을 잘 모르기 때문에, 전문 용어를 피하고 쉬운 말로 설명해주세요. 객관식 3개의 선택지도 함께 제공해주세요. 답변의 형식을 엄격히 지키고 줄로 구분해 주세요. 형식: Q. [질문 내용] A. [선택지1] B. [선택지2] C. [선택지3]의 형식으로 한 개의 질의응답만 제공해 주세요. 다음은 지금까지의 응답입니다.";
@@ -176,8 +169,9 @@ public class QuestionFlowController {
             promptBuilder.append(sr.getQuestion());
             promptBuilder.append(sr.getOption());
         }
-        String curPrompt = promptBuilder.toString();
-        redisTemplate.opsForValue().set(currentSession + ":prompt",curPrompt);
+        promptBuilder.append(" ");
+        String currentPrompt = promptBuilder.toString();
+        redisTemplate.opsForValue().set(currentSession + ":prompt",currentPrompt);
 
         logger.info(redisTemplate.opsForValue().get(currentSession + ":prompt")+"hehe");
         return new ApiResponse("success","세션 정보 조회 성공",promptBuilder);
@@ -244,15 +238,20 @@ public class QuestionFlowController {
                                     summary = "새로 생성된 질문 응답",
                                     value = """
                   {
-                    "question": "Q. 어떤 옷 스타일이 마음에 드세요?",
-                    "options": ["심플하고 깔끔", "약간은 특별한 포인트가 있는 스타일", "편하고 자유로운 캐주얼 스타일"]
+                    "status": "success",
+                    "message": "상황적 요소 질문 리스트 응답 조회 성공",
+                    "data":{
+                        "question": "Q. 어떤 옷 스타일이 마음에 드세요?",
+                        "options": ["심플하고 깔끔", "약간은 특별한 포인트가 있는 스타일", "편하고 자유로운 캐주얼 스타일"]
+                    }
+                    
                   }                 
                 """
                             )
                     )
             )
     )
-    @GetMapping("/next-question")
+    @GetMapping("/additional-info")
     public ApiResponse getNextInfo(HttpServletRequest request) {
         logger.info("he");
         String currentSession=getSessionId(request);
@@ -264,12 +263,67 @@ public class QuestionFlowController {
         // 요청 객체 생성
         Map<String, String> requestMap = new HashMap<>();
         requestMap.put("prompt", fullPrompt);
-//        return new ApiResponse("success", "응답 수신 성공", 1);
         ResponseEntity<ApiResponse> responseEntity = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
         ApiResponse fastApiResponse = responseEntity.getBody();
-        logger.info(fastApiResponse.getData().toString());
+        // ✅ 응답 data 꺼내기
+        Map<String, Object> rawData = (Map<String, Object>) fastApiResponse.getData();
+
+        // ✅ question과 options 수동으로 추출
+        String question = String.valueOf(rawData.get("question"));
+        Object options = rawData.get("options"); // options는 List일 것
+
+        Map<String, Object> newData = new HashMap<>();
+        newData.put("question", question);
+        newData.put("options", options);
+        logger.info(newData.toString());
         System.out.println(fastApiResponse);
-        return new ApiResponse("success", "응답 수신 성공", fastApiResponse);
+        return new ApiResponse("success", "응답 수신 성공", newData);
+    }
+
+    @Operation(
+            summary = "사용자에게 최종적으로 추천해 줄 옷 정보에 대한 응답",
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "최종 옷 정보 응답. 각 필드는 다음과 같은 의미를 가집니다:\n" +
+                            "- product_detail_images: 이미지 링크 (예: S3)\n" +
+                            "- product_description: 해당 옷을 추천한 이유\n" +
+                            "- product_link: 해당 옷을 판매하는 링크\n" +
+                            "- product_like: 해당 추천(옷)에 대한 좋아요 수",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = QARequest.class),
+                            examples = @ExampleObject(
+                                    name = "응답 예시",
+                                    summary = "최종 옷 정보 예시",
+                                    value = """
+                {
+                  "status": "success",
+                  "message": "최종 옷 정보 응답",
+                  "data":{
+                    "product_detail_images": "https://image.msscdn.net/images/prd_img/202504040933220682848423367ef28d210ac3.jpg",
+                      "product_description": "편안한 느낌과 무채색 취향을 반영하여 이런 옷으로 추천 드립니다.",
+                      "product_link": "https://www.musinsa.com/products/4984372",
+                      "product_like": 1018
+                  }
+                }
+                """
+                            )
+                    )
+            )
+    )
+    @GetMapping("/complete")
+    public ApiResponse getFinalRecommendation(HttpServletRequest request){
+        Map<String, Object> recommendServerResponse = new HashMap<>();
+        recommendServerResponse.put("product_detail_images","https://image.msscdn.net/images/prd_img/202504040933220682848423367ef28d210ac3.jpg");
+        recommendServerResponse.put("product_description","편안한 느낌과 무채색 취향을 반영하여 이런 옷으로 추천 드립니다.");
+        recommendServerResponse.put("product_link","https://naver.com");
+        recommendServerResponse.put("product_id","4946821");
+
+        Map<String, Object> responseMap = new HashMap<>();
+        responseMap.put("product_detail_images","https://image.msscdn.net/images/prd_img/202504040933220682848423367ef28d210ac3.jpg");
+        responseMap.put("product_description","편안한 느낌과 무채색 취향을 반영하여 이런 옷으로 추천 드립니다.");
+        responseMap.put("product_link","https://naver.com");
+        return new ApiResponse("success", "응답 수신 성공", null);
     }
     private String getSessionId(HttpServletRequest request) {
         // 쿠키에서 access_token을 찾는 로직
