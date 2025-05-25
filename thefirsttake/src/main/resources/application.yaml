@@ -23,8 +23,8 @@ spring:
       client:
         registration:
           kakao:
-            client-id: "97f5c97a224dca533475fff3437be7d6"
-            client-secret: "ABwe4xBoqluIt3O1aJ849qw3b3UUQv7q"
+            client-id: ""
+            client-secret: ""
             redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
 #            redirect-uri: "http://localhost:3000/api/auth/callback/kakao"
 #            redirect-uri: "http://localhost:5500/kakao-callback.html"
