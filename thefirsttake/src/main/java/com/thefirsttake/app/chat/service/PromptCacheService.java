@@ -1,4 +1,4 @@
-package com.thefirsttake.app.flow.service;
+package com.thefirsttake.app.chat.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

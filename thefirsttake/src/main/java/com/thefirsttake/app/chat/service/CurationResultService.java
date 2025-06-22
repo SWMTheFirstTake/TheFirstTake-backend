@@ -1,4 +1,4 @@
-package com.thefirsttake.app.flow.service;
+package com.thefirsttake.app.chat.service;
 
 import com.thefirsttake.app.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;

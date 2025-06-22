@@ -1,13 +1,8 @@
-package com.thefirsttake.app.flow.service;
+package com.thefirsttake.app.chat.service;
 
-import com.thefirsttake.app.common.response.ApiResponse;
+import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -15,8 +10,8 @@ public class ChatMessageProcessorService {
     private final PromptValueService promptValueService;
     private final CurationResultService curationResultService;
     private final PromptCacheService promptCacheService;
-    public String generateCurationResponse(String userInput, String currentSession) {
-        String promptKey=currentSession+":prompt";
+    public String generateCurationResponse(String userInput, String currentSessionId) {
+        String promptKey=currentSessionId+":prompt";
         // 1. redis에 promptKey를 key로 프롬프트를 가져오거나 or 새로운 프롬프트 생성
         String currentPromptValue=promptValueService.getPrompt(promptKey,userInput);
 
@@ -25,6 +20,7 @@ public class ChatMessageProcessorService {
 
         // 3. 프롬프트밸류+현재 큐레이션 결과를 저장
         promptCacheService.savePrompt(promptKey,currentPromptValue+curationResult);
+
         // 4. 큐레이션 결과를 사용자에게 보여주기 위해 보여줌
         return curationResult;
     }
