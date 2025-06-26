@@ -15,5 +15,11 @@ public class UserDto {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String email;
+//    private String email;
+
+    @Column(name = "is_guest")
+    private Boolean isGuest;
+
+    @Column(name = "created_at")
+    private java.time.LocalDateTime createdAt;
 }

@@ -11,6 +11,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,7 +22,7 @@ public class ChatMessageWorkerService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProcessorService chatMessageProcessorService;
 //    @Scheduled(fixedDelay = 5000)
-    public String processChatQueue(String sessionId) {
+    public List<String> processChatQueue(String sessionId) {
         String json = redisTemplate.opsForList().leftPop("chat_queue:"+sessionId);
         if (json != null) {
             try {
@@ -28,21 +30,28 @@ public class ChatMessageWorkerService {
 
                 // 예시: 응답 생성 후 DB 저장
 //                String answer = "이건 예시 응답입니다: " + item.getMessage();
-                String answer=chatMessageProcessorService.generateCurationResponse(item.getMessage(), item.getSessionId());
+                List<String> answers=chatMessageProcessorService.generateCurationResponse(item.getMessage(), item.getSessionId());
 
-                ChatMessage responseMessage = ChatMessage.builder()
-                        .sessionId(item.getSessionId())
-                        .sender("BOT")
-                        .message(answer)
-                        .build();
+                for (int i = 0; i < answers.size(); ++i) {
+                    String answer = answers.get(i);
+                    String sender = "BOT" + (i + 1);  // BOT1, BOT2, ...
 
-                chatMessageRepository.save(responseMessage);
+                    ChatMessage responseMessage = ChatMessage.builder()
+                            .sessionId(item.getSessionId())
+                            .sender(sender)
+                            .message(answer)
+                            .build();
+
+                    chatMessageRepository.save(responseMessage);
+                }
+
+//                chatMessageRepository.save(responseMessage);
                 log.info("✅ 처리 완료: {}", item.getMessage());
-                return answer;
+                return answers;
             } catch (Exception e) {
                 log.error("❌ 큐 처리 실패: {}", json, e);
             }
         }
-        return json;
+        return null;
     }
 }

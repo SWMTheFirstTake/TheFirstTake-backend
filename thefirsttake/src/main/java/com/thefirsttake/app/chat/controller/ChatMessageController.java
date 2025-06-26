@@ -20,6 +20,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
@@ -119,7 +121,7 @@ public class ChatMessageController {
 
     @Operation(
             summary = "채팅 응답 메시지 수신",
-            description = "Redis 큐에서 세션에 해당하는 응답 메시지가 있는 경우, 한 번만 꺼내서 반환합니다.",
+            description = "Redis 큐에서 세션에 해당하는 응답 메시지가 있는 경우, 여러 개의 메시지를 한번에 꺼내 반환합니다.",
             responses = {
                     @io.swagger.v3.oas.annotations.responses.ApiResponse(
                             responseCode = "200",
@@ -129,12 +131,15 @@ public class ChatMessageController {
                                     schema = @Schema(implementation = CommonResponse.class),
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
-                                            summary = "Redis에서 가져온 응답 메시지",
+                                            summary = "Redis에서 가져온 응답 메시지 리스트",
                                             value = """
                     {
                       "status": "success",
                       "message": "요청 성공",
-                      "data": "내일 소개팅을 위한 깔끔하고 자연스러운 스타일을 추천드릴게요. \\n\\n- 소재: 가볍고 통풍이 잘 되는 린넨 또는 면 소재의 화사한 하얀색 또는 연한 파스텔 톤 셔츠를 선택하세요.  \\n- 하의: 깔끔한 치노 팬츠 또는 슬림 핏 면바지로 마무리하면 세련된 느낌을 줄 수 있어요.  \\n- 기타 액세서리: 불필요하다면 간단한 시계나 가벼운 팔찌 정도로 포인트를 주시면 좋아요.  \\n\\n이런 조합은 캐주얼하면서도 포멀한 느낌을 적절히 살려 자연스럽고 세련된 인상을 줄 수 있습니다. 내일 기분 좋게 소개팅 시작하세요!"
+                      "data": [
+                        "당신의 소개팅은 어떤 분위기를 원하세요? 좀 더 캐주얼하고 편안한 느낌을 원하시면 깔끔한 셔츠와 슬랙스, 약간 더 포멀한 느낌을 원하시면 셔츠와 블레이저를 추천드릴게요.1번째 AI",
+                        "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠 또는 치마를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
+                      ]
                     }
                     """
                                     )
@@ -181,7 +186,7 @@ public class ChatMessageController {
         }
 
         String sessionId = session.getId();
-        String responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
+        List<String> responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
 //        String redisKey = "chat_response:" + sessionId;
 //
 //        // Redis에서 메시지를 pop (꺼내고 제거)
