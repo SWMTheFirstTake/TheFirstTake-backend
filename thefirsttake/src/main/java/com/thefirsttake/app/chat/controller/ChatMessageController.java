@@ -3,10 +3,10 @@ package com.thefirsttake.app.chat.controller;
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
-import com.thefirsttake.app.chat.service.ChatMessageSaveService;
+//import com.thefirsttake.app.chat.service.ChatMessageSaveService;
 import com.thefirsttake.app.chat.service.ChatRoomService;
 import com.thefirsttake.app.chat.service.SendMessageWorkerService;
-import com.thefirsttake.app.chat.service.worker.ChatMessageWorkerService;
+//import com.thefirsttake.app.chat.service.worker.ChatMessageWorkerService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
@@ -26,9 +26,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatMessageController {
     private final ChatMessageProcessorService chatMessageProcessorService;
-    private final ChatMessageSaveService chatMessageSaveService;
+//    private final ChatMessageSaveService chatMessageSaveService;
     private final SendMessageWorkerService sendMessageWorkerService;
-    private final ChatMessageWorkerService chatMessageWorkerService;
+//    private final ChatMessageWorkerService chatMessageWorkerService;
     private final UserSessionService userSessionService;
     private final ChatRoomService chatRoomService;
 
@@ -125,11 +125,12 @@ public class ChatMessageController {
             // 1. roomid를 바탕으로 -> 채팅방 확인 -> 유저 확인
             UserEntity userEntity=chatRoomService.getUserEntityByRoomId(roomId);
             // 2. 메시지 PostgreSQL에 저장
+            Long savedId=chatRoomService.saveUserMessage(userEntity,chatMessageRequest,roomId);
             // 3. Redis 워커 큐에 푸시
 
             // 1. 유저 확인/생성
             // 2. 채팅방 확인/생성
-            return CommonResponse.success(userEntity.getId());
+            return CommonResponse.success(savedId);
 //            // 1. PostgreSQL 저장
 //            Long savedId = chatMessageSaveService.saveUserMessage(sessionId, chatMessageRequest);
 //
@@ -148,84 +149,86 @@ public class ChatMessageController {
 
     }
 
-    @Operation(
-            summary = "채팅 응답 메시지 수신",
-            description = "Redis 큐에서 세션에 해당하는 응답 메시지가 있는 경우, 여러 개의 메시지를 한번에 꺼내 반환합니다.",
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "200",
-                            description = "응답 메시지 수신 성공",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = CommonResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "성공 응답 예시",
-                                            summary = "Redis에서 가져온 응답 메시지 리스트",
-                                            value = """
-                    {
-                      "status": "success",
-                      "message": "요청 성공",
-                      "data": [
-                        "당신의 소개팅은 어떤 분위기를 원하세요? 좀 더 캐주얼하고 편안한 느낌을 원하시면 깔끔한 셔츠와 슬랙스, 약간 더 포멀한 느낌을 원하시면 셔츠와 블레이저를 추천드릴게요.1번째 AI",
-                        "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
-                      ]
-                    }
-                    """
-                                    )
-                            )
-                    ),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                            responseCode = "400",
-                            description = "세션 없음 또는 응답 없음",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = {
-                                            @ExampleObject(
-                                                    name = "세션 없음 예시",
-                                                    summary = "세션이 없을 경우",
-                                                    value = """
-                        {
-                          "status": "fail",
-                          "message": "세션이 존재하지 않습니다.",
-                          "data": null
-                        }
-                        """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "응답 없음 예시",
-                                                    summary = "아직 응답이 Redis에 없는 경우",
-                                                    value = """
-                        {
-                          "status": "fail",
-                          "message": "응답이 아직 없습니다.",
-                          "data": null
-                        }
-                        """
-                                            )
-                                    }
-                            )
-                    )
-            }
-    )
-    @GetMapping("/receive")
-    public CommonResponse receiveChatMessage(HttpServletRequest httpRequest) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session == null) {
-            return CommonResponse.fail("세션이 존재하지 않습니다.");
-        }
-
-        String sessionId = session.getId();
-        List<String> responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
-//        String redisKey = "chat_response:" + sessionId;
+//    @Operation(
+//            summary = "채팅 응답 메시지 수신",
+//            description = "Redis 큐에서 세션에 해당하는 응답 메시지가 있는 경우, 여러 개의 메시지를 한번에 꺼내 반환합니다.",
+//            responses = {
+//                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                            responseCode = "200",
+//                            description = "응답 메시지 수신 성공",
+//                            content = @Content(
+//                                    mediaType = "application/json",
+//                                    schema = @Schema(implementation = CommonResponse.class),
+//                                    examples = @ExampleObject(
+//                                            name = "성공 응답 예시",
+//                                            summary = "Redis에서 가져온 응답 메시지 리스트",
+//                                            value = """
+//                    {
+//                      "status": "success",
+//                      "message": "요청 성공",
+//                      "data": [
+//                        "당신의 소개팅은 어떤 분위기를 원하세요? 좀 더 캐주얼하고 편안한 느낌을 원하시면 깔끔한 셔츠와 슬랙스, 약간 더 포멀한 느낌을 원하시면 셔츠와 블레이저를 추천드릴게요.1번째 AI",
+//                        "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
+//                      ]
+//                    }
+//                    """
+//                                    )
+//                            )
+//                    ),
+//                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+//                            responseCode = "400",
+//                            description = "세션 없음 또는 응답 없음",
+//                            content = @Content(
+//                                    mediaType = "application/json",
+//                                    examples = {
+//                                            @ExampleObject(
+//                                                    name = "세션 없음 예시",
+//                                                    summary = "세션이 없을 경우",
+//                                                    value = """
+//                        {
+//                          "status": "fail",
+//                          "message": "세션이 존재하지 않습니다.",
+//                          "data": null
+//                        }
+//                        """
+//                                            ),
+//                                            @ExampleObject(
+//                                                    name = "응답 없음 예시",
+//                                                    summary = "아직 응답이 Redis에 없는 경우",
+//                                                    value = """
+//                        {
+//                          "status": "fail",
+//                          "message": "응답이 아직 없습니다.",
+//                          "data": null
+//                        }
+//                        """
+//                                            )
+//                                    }
+//                            )
+//                    )
+//            }
+//    )
+//    @GetMapping("/receive")
+//    public CommonResponse receiveChatMessage(HttpServletRequest httpRequest) {
+//        HttpSession session = httpRequest.getSession(false);
+//        if (session == null) {
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
+//        }
 //
-//        // Redis에서 메시지를 pop (꺼내고 제거)
-//        String responseMessage = redisTemplate.opsForList().leftPop(redisKey);
+//        String sessionId = session.getId();
+//        List<String> responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
 //
-        if (responseMessage == null) {
-            return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
-        }
-        return CommonResponse.success(responseMessage);
-    }
+//
+////        String redisKey = "chat_response:" + sessionId;
+////
+////        // Redis에서 메시지를 pop (꺼내고 제거)
+////        String responseMessage = redisTemplate.opsForList().leftPop(redisKey);
+////
+//        if (responseMessage == null) {
+//            return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
+//        }
+//        return CommonResponse.success(responseMessage);
+//    }
 
 
 }
