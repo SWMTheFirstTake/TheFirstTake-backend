@@ -13,8 +13,8 @@ public class ChatMessageProcessorService {
     private final PromptValueService promptValueService;
     private final CurationResultService curationResultService;
     private final PromptCacheService promptCacheService;
-    public List<String> generateCurationResponse(String userInput, String currentSessionId) {
-        String promptKey=currentSessionId+":prompt";
+    public List<String> generateCurationResponse(String userInput, Long roomId) {
+        String promptKey=roomId+":prompt";
         // 1. redis에 promptKey를 key로 프롬프트를 가져오거나 or 새로운 프롬프트 생성
         String currentPromptValue=promptValueService.getPrompt(promptKey,userInput);
 

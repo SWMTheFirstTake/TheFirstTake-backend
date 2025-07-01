@@ -6,7 +6,7 @@ import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
 //import com.thefirsttake.app.chat.service.ChatMessageSaveService;
 import com.thefirsttake.app.chat.service.ChatRoomService;
 //import com.thefirsttake.app.chat.service.SendMessageWorkerService;
-//import com.thefirsttake.app.chat.service.worker.ChatMessageWorkerService;
+import com.thefirsttake.app.chat.service.ChatMessageWorkerService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
@@ -28,7 +28,7 @@ public class ChatMessageController {
     private final ChatMessageProcessorService chatMessageProcessorService;
 //    private final ChatMessageSaveService chatMessageSaveService;
 //    private final SendMessageWorkerService sendMessageWorkerService;
-//    private final ChatMessageWorkerService chatMessageWorkerService;
+    private final ChatMessageWorkerService chatMessageWorkerService;
     private final UserSessionService userSessionService;
     private final ChatRoomService chatRoomService;
 
@@ -208,16 +208,10 @@ public class ChatMessageController {
 //                    )
 //            }
 //    )
-//    @GetMapping("/receive")
-//    public CommonResponse receiveChatMessage(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
-//        HttpSession session = httpRequest.getSession(false);
-//        if (session == null) {
-//            return CommonResponse.fail("세션이 존재하지 않습니다.");
-//        }
-//
-//        String sessionId = session.getId();
-//        List<String> responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
-
+    @GetMapping("/receive")
+    public CommonResponse receiveChatMessage(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
+//        UserEntity userEntity=chatRoomService.getUserEntityByRoomId(roomId);
+        List<String> responseMessage=chatMessageWorkerService.processChatQueue(roomId);
 
 //        String redisKey = "chat_response:" + sessionId;
 //
