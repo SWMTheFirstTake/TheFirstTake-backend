@@ -5,7 +5,7 @@
 //import com.thefirsttake.app.auth.repository.UserRepository;
 //import com.thefirsttake.app.auth.service.KakaoLogoutService;
 //import com.thefirsttake.app.auth.service.KakaoOauthService;
-//import com.thefirsttake.app.common.dto.UserDto;
+//import com.thefirsttake.app.chat.entity.UserDto;
 //import com.thefirsttake.app.common.response.ApiResponse;
 //import io.jsonwebtoken.ExpiredJwtException;
 //import io.jsonwebtoken.JwtException;

@@ -1,9 +1,8 @@
 package com.thefirsttake.app.security;
 
-import com.thefirsttake.app.common.dto.UserDto;
+import com.thefirsttake.app.common.user.entity.UserEntity;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -15,7 +14,7 @@ public class JwtProvider {
 //    private String secretKey;
 //    private final byte[] SECRET_KEY = secretKey.getBytes(StandardCharsets.UTF_8);
     private final byte[] SECRET_KEY = "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111".getBytes(StandardCharsets.UTF_8);
-    public String generateAccessToken(UserDto user) {
+    public String generateAccessToken(UserEntity user) {
         return Jwts.builder()
                 .setSubject(user.getId().toString()) // 또는 user.getId() 등
                 .setIssuedAt(new Date())
@@ -23,7 +22,7 @@ public class JwtProvider {
                 .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
                 .compact();
     }
-    public String generateRefreshToken(UserDto user) {
+    public String generateRefreshToken(UserEntity user) {
         return Jwts.builder()
                 .setSubject(user.getId().toString()) // 또는 user.getId() 등
                 .setIssuedAt(new Date())

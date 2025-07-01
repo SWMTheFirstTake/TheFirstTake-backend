@@ -5,7 +5,7 @@
 //import com.thefirsttake.app.auth.dto.KakaoUserInfo;
 //import com.thefirsttake.app.auth.dto.response.TokenResponse;
 //import com.thefirsttake.app.auth.repository.UserRepository;
-//import com.thefirsttake.app.common.dto.UserDto;
+//import com.thefirsttake.app.chat.entity.UserDto;
 //import com.thefirsttake.app.common.exception.CustomException;
 //import com.thefirsttake.app.security.JwtProvider;
 //import lombok.RequiredArgsConstructor;

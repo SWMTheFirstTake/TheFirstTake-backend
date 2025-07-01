@@ -1,6 +1,6 @@
 //package com.thefirsttake.app.auth.repository;
 //
-//import com.thefirsttake.app.common.dto.UserDto;
+//import com.thefirsttake.app.chat.entity.UserDto;
 //import org.springframework.data.jpa.repository.JpaRepository;
 //
 //import java.util.Optional;

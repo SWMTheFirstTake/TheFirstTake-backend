@@ -1,13 +1,15 @@
 package com.thefirsttake.app.chat.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
+import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
 import com.thefirsttake.app.chat.service.ChatMessageSaveService;
+import com.thefirsttake.app.chat.service.ChatRoomService;
 import com.thefirsttake.app.chat.service.SendMessageWorkerService;
 import com.thefirsttake.app.chat.service.worker.ChatMessageWorkerService;
-import com.thefirsttake.app.common.response.ApiResponse;
 import com.thefirsttake.app.common.response.CommonResponse;
+import com.thefirsttake.app.common.user.entity.UserEntity;
+import com.thefirsttake.app.common.user.service.UserSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -15,9 +17,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,7 +29,36 @@ public class ChatMessageController {
     private final ChatMessageSaveService chatMessageSaveService;
     private final SendMessageWorkerService sendMessageWorkerService;
     private final ChatMessageWorkerService chatMessageWorkerService;
+    private final UserSessionService userSessionService;
+    private final ChatRoomService chatRoomService;
 
+    @PostMapping("/rooms/start")
+    public CommonResponse getOrCreateChatRoom(HttpServletRequest httpRequest){
+        HttpSession session = httpRequest.getSession(true);
+
+        // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
+
+        // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
+        if (session == null) {
+            return CommonResponse.fail("세션이 존재하지 않습니다.");
+        }
+
+        String sessionId = session.getId();
+        try {
+            // 1. 유저 확인/생성
+            UserEntity userEntity=userSessionService.getOrCreateGuestUser(sessionId);
+            // 2. 채팅방 확인/생성
+            // ✅ chatRoomService를 통해 채팅방 가져오기 or 생성
+            ChatRoom chatRoom = chatRoomService.getOrCreateChatRoom(userEntity);
+            return CommonResponse.success(chatRoom.getId());
+
+
+        } catch (Exception e) {
+            e.printStackTrace(); // 로그로 남기기 (혹은 log.error(...))
+
+            return CommonResponse.fail("채팅방 생성 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
 
     @Operation(
             summary = "채팅 메시지 전송",
@@ -92,24 +120,25 @@ public class ChatMessageController {
             }
     )
     @PostMapping("/send")
-    public CommonResponse sendChatMessage(@RequestBody ChatMessageRequest chatMessageRequest, HttpServletRequest httpRequest){
-        HttpSession session = httpRequest.getSession(true);
-
-        if (session == null) {
-            return CommonResponse.fail("세션이 존재하지 않습니다.");
-        }
-
-        String sessionId = session.getId();
+    public CommonResponse sendChatMessage(@RequestParam("roomId") Long roomId, @RequestBody ChatMessageRequest chatMessageRequest, HttpServletRequest httpRequest){
         try {
-            // 1. PostgreSQL 저장
-            Long savedId = chatMessageSaveService.saveUserMessage(sessionId, chatMessageRequest);
-
-            // 2. chat_request:sessionId에 유저의 request 넣기
-
+            // 1. roomid를 바탕으로 -> 채팅방 확인 -> 유저 확인
+            UserEntity userEntity=chatRoomService.getUserEntityByRoomId(roomId);
+            // 2. 메시지 PostgreSQL에 저장
             // 3. Redis 워커 큐에 푸시
-            sendMessageWorkerService.sendChatQueue(sessionId, chatMessageRequest);
 
-            return CommonResponse.success(savedId);
+            // 1. 유저 확인/생성
+            // 2. 채팅방 확인/생성
+            return CommonResponse.success(userEntity.getId());
+//            // 1. PostgreSQL 저장
+//            Long savedId = chatMessageSaveService.saveUserMessage(sessionId, chatMessageRequest);
+//
+//            // 2. chat_request:sessionId에 유저의 request 넣기
+//
+//            // 3. Redis 워커 큐에 푸시
+//            sendMessageWorkerService.sendChatQueue(sessionId, chatMessageRequest);
+//
+//            return CommonResponse.success(savedId);
 
         } catch (Exception e) {
             e.printStackTrace(); // 로그로 남기기 (혹은 log.error(...))
@@ -138,7 +167,7 @@ public class ChatMessageController {
                       "message": "요청 성공",
                       "data": [
                         "당신의 소개팅은 어떤 분위기를 원하세요? 좀 더 캐주얼하고 편안한 느낌을 원하시면 깔끔한 셔츠와 슬랙스, 약간 더 포멀한 느낌을 원하시면 셔츠와 블레이저를 추천드릴게요.1번째 AI",
-                        "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠 또는 치마를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
+                        "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
                       ]
                     }
                     """
