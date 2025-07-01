@@ -1,5 +1,8 @@
 package com.thefirsttake.app.chat.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thefirsttake.app.chat.dto.ChatQueueItem;
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import com.thefirsttake.app.chat.entity.ChatMessage;
 import com.thefirsttake.app.chat.entity.ChatRoom;
@@ -9,6 +12,8 @@ import com.thefirsttake.app.common.user.entity.UserEntity;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.apache.catalina.User;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,6 +23,9 @@ import java.time.LocalDateTime;
 public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final RedisTemplate<String, String> redisTemplate; // Redis 주입
+    private final ObjectMapper objectMapper;
+
     public ChatRoom getOrCreateChatRoom(UserEntity userEntity) {
         return chatRoomRepository.findFirstByUserOrderByIdAsc(userEntity)
                 .orElseGet(() -> {
@@ -53,5 +61,21 @@ public class ChatRoomService {
 
         ChatMessage saved = chatMessageRepository.save(message);
         return saved.getId(); // 저장된 메시지의 ID 반환
+    }
+    public void sendChatQueue(Long roomId, ChatMessageRequest chatMessageRequest){
+        ChatQueueItem queueItem = ChatQueueItem.builder()
+                .roomId(roomId)
+                .message(chatMessageRequest.getContent())
+                .build();
+        try {
+            String json = objectMapper.writeValueAsString(queueItem);
+            redisTemplate.opsForList().rightPush("chat_queue:"+roomId, json);
+        } catch (RedisConnectionFailureException e) {
+            throw new RuntimeException("❌ Redis 연결 실패", e);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("❌ 직렬화 실패", e);
+        } catch (Exception e) {
+            throw new RuntimeException("❌ 기타 Redis 작업 실패", e);
+        }
     }
 }

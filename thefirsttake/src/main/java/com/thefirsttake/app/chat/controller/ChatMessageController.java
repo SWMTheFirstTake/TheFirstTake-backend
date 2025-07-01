@@ -5,7 +5,7 @@ import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
 //import com.thefirsttake.app.chat.service.ChatMessageSaveService;
 import com.thefirsttake.app.chat.service.ChatRoomService;
-import com.thefirsttake.app.chat.service.SendMessageWorkerService;
+//import com.thefirsttake.app.chat.service.SendMessageWorkerService;
 //import com.thefirsttake.app.chat.service.worker.ChatMessageWorkerService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.user.entity.UserEntity;
@@ -27,7 +27,7 @@ import java.util.List;
 public class ChatMessageController {
     private final ChatMessageProcessorService chatMessageProcessorService;
 //    private final ChatMessageSaveService chatMessageSaveService;
-    private final SendMessageWorkerService sendMessageWorkerService;
+//    private final SendMessageWorkerService sendMessageWorkerService;
 //    private final ChatMessageWorkerService chatMessageWorkerService;
     private final UserSessionService userSessionService;
     private final ChatRoomService chatRoomService;
@@ -127,7 +127,7 @@ public class ChatMessageController {
             // 2. 메시지 PostgreSQL에 저장
             Long savedId=chatRoomService.saveUserMessage(userEntity,chatMessageRequest,roomId);
             // 3. Redis 워커 큐에 푸시
-
+            chatRoomService.sendChatQueue(roomId, chatMessageRequest);
             // 1. 유저 확인/생성
             // 2. 채팅방 확인/생성
             return CommonResponse.success(savedId);
@@ -209,7 +209,7 @@ public class ChatMessageController {
 //            }
 //    )
 //    @GetMapping("/receive")
-//    public CommonResponse receiveChatMessage(HttpServletRequest httpRequest) {
+//    public CommonResponse receiveChatMessage(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
 //        HttpSession session = httpRequest.getSession(false);
 //        if (session == null) {
 //            return CommonResponse.fail("세션이 존재하지 않습니다.");
@@ -217,18 +217,18 @@ public class ChatMessageController {
 //
 //        String sessionId = session.getId();
 //        List<String> responseMessage=chatMessageWorkerService.processChatQueue(sessionId);
+
+
+//        String redisKey = "chat_response:" + sessionId;
 //
+//        // Redis에서 메시지를 pop (꺼내고 제거)
+//        String responseMessage = redisTemplate.opsForList().leftPop(redisKey);
 //
-////        String redisKey = "chat_response:" + sessionId;
-////
-////        // Redis에서 메시지를 pop (꺼내고 제거)
-////        String responseMessage = redisTemplate.opsForList().leftPop(redisKey);
-////
-//        if (responseMessage == null) {
-//            return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
-//        }
-//        return CommonResponse.success(responseMessage);
-//    }
+        if (responseMessage == null) {
+            return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
+        }
+        return CommonResponse.success(responseMessage);
+    }
 
 
 }

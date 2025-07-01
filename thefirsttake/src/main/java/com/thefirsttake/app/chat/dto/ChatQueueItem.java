@@ -8,6 +8,7 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class ChatQueueItem {
-    private String sessionId;
+//    private String sessionId;
+    private Long roomId;
     private String message;
 }
