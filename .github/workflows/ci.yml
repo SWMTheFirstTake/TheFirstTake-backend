@@ -1,3 +1,12 @@
+name: Spring Boot CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -23,17 +32,7 @@ jobs:
         run: chmod +x ./thefirsttake/gradlew
 
       - name: Build and test
-        run: cd thefirsttake && ./gradlew clean build
-
-# name: Spring Boot CI
-
-# on:
-#   push:
-#     branches:
-#       - main
-#   pull_request:
-#     branches:
-#       - main
+        run: cd thefirsttake && ./gradlew clean build      
 
 # jobs:
 #   build-and-test:
