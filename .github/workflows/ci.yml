@@ -34,6 +34,92 @@
 #       - name: Build and test
 #         run: cd thefirsttake && ./gradlew clean build      
 
+# name: Spring Boot CI/CD
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   pull_request:
+#     branches:
+#       - main
+
+# jobs:
+#   build-and-test:
+#     runs-on: ubuntu-latest
+
+#     env:
+#       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+#       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+#       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
+#       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+#       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       - name: Set up JDK 21
+#         uses: actions/setup-java@v3
+#         with:
+#           java-version: '21'
+#           distribution: 'temurin'
+
+#       - name: Grant execute permission for gradlew
+#         run: chmod +x ./thefirsttake/gradlew
+
+#       - name: Build
+#         run: cd thefirsttake && ./gradlew clean build
+
+#       - name: Upload build artifact for deployment
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: app-jar
+#           path: thefirsttake/build/libs/*.jar
+
+#   deploy:
+#     needs: build-and-test
+#     runs-on: ubuntu-latest
+
+#     env:
+#       SERVER_IP: ${{ secrets.SERVER_IP }}
+#       SERVER_USER: ${{ secrets.SERVER_USER }}
+#       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+#       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
+#       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+#       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+#       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+#       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+
+#     steps:
+#       - name: Download build artifact
+#         uses: actions/download-artifact@v4
+#         with:
+#           name: app-jar
+#           path: ./deploy
+
+#       - name: Copy jar to server
+#         uses: appleboy/scp-action@v0.1.4
+#         with:
+#           host: ${{ env.SERVER_IP }}
+#           username: ${{ env.SERVER_USER }}
+#           key: ${{ env.SERVER_SSH_KEY }}
+#           source: "./deploy/*.jar"
+#           target: "/home/${{ env.SERVER_USER }}/app/"
+
+#       - name: Restart app on server
+#         uses: appleboy/ssh-action@v0.1.5
+#         with:
+#           host: ${{ env.SERVER_IP }}  
+#           username: ${{ env.SERVER_USER }}
+#           key: ${{ env.SERVER_SSH_KEY }}
+          
+
+          # script: |
+          #   pkill -f 'java -jar' || true
+          #   setsid java -jar /home/ubuntu/app/deploy/thefirsttake-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/app.log 2>&1 &
+
+
 name: Spring Boot CI/CD
 
 on:
@@ -85,11 +171,19 @@ jobs:
       SERVER_IP: ${{ secrets.SERVER_IP }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+      # 아래 환경 변수들은 EC2에서 애플리케이션 실행 시 필요합니다.
+      # application.yml에 하드코딩된 부분이 있어도, 환경 변수 주입은 안전한 방법입니다.
       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+      # PostgreSQL URL, Host, Port, DB Name은 secrets에 추가하여 사용하는 것이 좋습니다.
+      # 예: POSTGRES_URL: jdbc:postgresql://your-db-host:5432/your-db-name?sslmode=require
+      # 또는 아래 script 블록에서 직접 하드코딩된 URL을 사용할 수도 있습니다.
+      # POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+      # POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+      # POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
 
     steps:
       - name: Download build artifact
@@ -110,29 +204,28 @@ jobs:
       - name: Restart app on server
         uses: appleboy/ssh-action@v0.1.5
         with:
-          host: ${{ env.SERVER_IP }}  
+          host: ${{ env.SERVER_IP }}
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
-                  # 기존 프로세스 종료
-                  pkill -f 'thefirsttake-0.0.1-SNAPSHOT.jar' || true
-                  sleep 5 # 프로세스가 완전히 종료될 시간을 줍니다.
+            # 기존에 실행 중인 애플리케이션 프로세스 종료
+            # '|| true'는 프로세스가 없어서 pkill이 실패해도 스크립트가 계속 진행되도록 합니다.
+            pkill -f 'thefirsttake-0.0.1-SNAPSHOT.jar' || true
+            # 이전 프로세스가 완전히 종료될 시간을 줍니다. (충돌 방지)
+            sleep 5
 
-                  # 환경 변수들을 명시적으로 export 합니다.
-                  # your_db_host, your_db_port, your_db_name은 실제 값으로 대체하거나
-                  # GitHub Secrets에 추가하여 ${{ secrets.POSTGRES_HOST }} 등으로 사용하세요.
-                  export SPRING_DATASOURCE_URL="jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require"
-                  export SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
-                  export SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
-                  export SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
-                  export LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
-                  export LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
-                  export REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
+            # Spring Boot 애플리케이션에 필요한 환경 변수들을 export 합니다.
+            # application.yml에 하드코딩된 URL이 있지만, 환경 변수 주입은 더 유연하고 안전한 방법입니다.
+            # 여기서는 application.yml에 있는 값과 동일하게 하드코딩된 URL을 사용합니다.
+            export SPRING_DATASOURCE_URL="jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require"
+            export SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
+            export SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+            export SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
+            export LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
+            export LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
+            export REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
 
-                  # setsid와 nohup을 함께 사용하여 완전히 백그라운드에서 실행
-                  setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
-
-          # script: |
-          #   pkill -f 'java -jar' || true
-          #   setsid java -jar /home/ubuntu/app/deploy/thefirsttake-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/app.log 2>&1 &
-
+            # setsid와 nohup을 사용하여 애플리케이션을 완전히 백그라운드에서 실행합니다.
+            # setsid는 새로운 세션을 생성하여 SSH 세션 종료와 무관하게 프로세스가 유지되도록 합니다.
+            # nohup은 터미널이 끊어져도 프로세스가 계속 실행되도록 하며, 출력을 app.log로 리다이렉션합니다.
+            setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
