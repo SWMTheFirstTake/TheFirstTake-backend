@@ -72,7 +72,7 @@ jobs:
         run: cd thefirsttake && ./gradlew clean build
 
       - name: Upload build artifact for deployment
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-jar
           path: thefirsttake/build/libs/*.jar
@@ -88,7 +88,7 @@ jobs:
 
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: app-jar
           path: ./deploy
