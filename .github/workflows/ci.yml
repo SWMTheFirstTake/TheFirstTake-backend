@@ -110,3 +110,5 @@ jobs:
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
             pkill -f 'java -jar' || true
+            nohup java -jar /home/ubuntu/app/deploy/thefirsttake-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/app.log 2>&1 &
+
