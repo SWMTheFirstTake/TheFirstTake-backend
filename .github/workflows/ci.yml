@@ -208,15 +208,8 @@ jobs:
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
-            # 기존에 실행 중인 애플리케이션 프로세스 종료
-            # '|| true'는 프로세스가 없어서 pkill이 실패해도 스크립트가 계속 진행되도록 합니다.
             pkill -f 'thefirsttake-0.0.1-SNAPSHOT.jar' || true
-            # 이전 프로세스가 완전히 종료될 시간을 줍니다. (충돌 방지)
             sleep 5
-
-            # Spring Boot 애플리케이션에 필요한 환경 변수들을 export 합니다.
-            # application.yml에 하드코딩된 URL이 있지만, 환경 변수 주입은 더 유연하고 안전한 방법입니다.
-            # 여기서는 application.yml에 있는 값과 동일하게 하드코딩된 URL을 사용합니다.
             export SPRING_DATASOURCE_URL="jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require"
             export SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
             export SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
@@ -224,8 +217,4 @@ jobs:
             export LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
             export LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
             export REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
-
-            # setsid와 nohup을 사용하여 애플리케이션을 완전히 백그라운드에서 실행합니다.
-            # setsid는 새로운 세션을 생성하여 SSH 세션 종료와 무관하게 프로세스가 유지되도록 합니다.
-            # nohup은 터미널이 끊어져도 프로세스가 계속 실행되도록 하며, 출력을 app.log로 리다이렉션합니다.
             setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
