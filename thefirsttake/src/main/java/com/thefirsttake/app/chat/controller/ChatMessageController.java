@@ -2,6 +2,7 @@ package com.thefirsttake.app.chat.controller;
 
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import com.thefirsttake.app.chat.dto.response.ChatRoomDto;
+import com.thefirsttake.app.chat.dto.response.ChatSessionHistoryResponse;
 import com.thefirsttake.app.chat.dto.response.ChatSessionStartResponse;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
@@ -97,26 +98,25 @@ public class ChatMessageController {
 //                    )
 //            }
 //    )
-    @Operation(
-            summary = "채팅 세션 시작 및 채팅방 생성/조회",
-            description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하거나 생성하고, 해당 사용자에 연결된 채팅방을 가져오거나 새로 생성합니다. 생성/조회된 채팅방의 ID와 사용자의 모든 채팅방 목록을 반환합니다.",
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "성공 시 새로 생성된 채팅방 ID 및 모든 채팅방 목록 반환",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    // ✨✨✨ CommonResponse.data의 실제 구현 DTO를 지정 ✨✨✨
-                                    schema = @Schema(implementation = ChatSessionStartResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "성공 응답 예시",
-                                            summary = "생성된 채팅방 ID 및 모든 채팅방 목록",
-                                            value = """
+@Operation(
+        summary = "사용자의 채팅방 목록 조회",
+        description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
+        responses = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "성공 시 사용자의 모든 채팅방 목록 반환",
+                        content = @Content(
+                                mediaType = "application/json",
+                                // ✨✨✨ CommonResponse.data의 실제 구현 DTO를 지정 ✨✨✨
+                                schema = @Schema(implementation = ChatSessionHistoryResponse.class), // 응답 DTO 변경 가능성
+                                examples = @ExampleObject(
+                                        name = "성공 응답 예시",
+                                        summary = "사용자의 모든 채팅방 목록",
+                                        value = """
                         {
                           "status": "success",
-                          "message": "요청 성공",
+                          "message": "채팅방 목록을 성공적으로 조회했습니다.",
                           "data": {
-                            "new_room_id": 3,
                             "all_rooms": [
                               {
                                 "id": 1,
@@ -124,56 +124,56 @@ public class ChatMessageController {
                                 "createdAt": "2024-01-01T10:00:00"
                               },
                               {
-                                "id": 3,
-                                "title": "새로운 채팅방",
+                                "id": 2,
+                                "title": "두 번째 채팅방",
                                 "createdAt": "2024-01-02T11:00:00"
                               }
                             ]
                           }
                         }
                         """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "400",
-                            description = "세션 없음 또는 처리 실패",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "세션 없음 예시",
-                                            summary = "세션이 존재하지 않는 경우",
-                                            value = """
+                                )
+                        )
+                ),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "세션 없음 또는 처리 실패",
+                        content = @Content(
+                                mediaType = "application/json",
+                                examples = @ExampleObject(
+                                        name = "세션 없음 예시",
+                                        summary = "세션이 존재하지 않는 경우",
+                                        value = """
                         {
                           "status": "fail",
                           "message": "세션이 존재하지 않습니다.",
                           "data": null
                         }
                         """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500",
-                            description = "서버 내부 오류",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "서버 오류 예시",
-                                            summary = "예상치 못한 서버 오류 발생",
-                                            value = """
+                                )
+                        )
+                ),
+                @ApiResponse(
+                        responseCode = "500",
+                        description = "서버 내부 오류",
+                        content = @Content(
+                                mediaType = "application/json",
+                                examples = @ExampleObject(
+                                        name = "서버 오류 예시",
+                                        summary = "예상치 못한 서버 오류 발생",
+                                        value = """
                         {
                           "status": "fail",
-                          "message": "채팅방 생성 중 오류가 발생했습니다: [오류 메시지]",
+                          "message": "채팅방 목록 조회 중 오류가 발생했습니다: [오류 메시지]",
                           "data": null
                         }
                         """
-                                    )
-                            )
-                    )
-            }
-    )
-    @PostMapping("/rooms/start")
+                                )
+                        )
+                )
+        }
+)
+@PostMapping("/rooms/history")
     public CommonResponse getOrCreateChatRoom(HttpServletRequest httpRequest){
         HttpSession session = httpRequest.getSession(true);
 
@@ -185,21 +185,24 @@ public class ChatMessageController {
         }
 
         String sessionId = session.getId();
+        System.out.println(sessionId);
         try {
             // 1. 유저 확인/생성
             UserEntity userEntity = userSessionService.getOrCreateGuestUser(sessionId);
 
             // 2. 새로운 채팅방 생성 (무조건 생성)
-            ChatRoom newChatRoom = chatRoomService.createNewChatRoom(userEntity);
+//            ChatRoom newChatRoom = chatRoomService.createNewChatRoom(userEntity);
 
             // 3. 해당 유저의 모든 채팅방 목록 가져오기 (새로 생성된 방 포함)
             // chatRoomService.getOrCreateChatRoom은 기존 방이 없으면 하나 만들고, 있으면 기존 방을 모두 반환합니다.
             // 여기서는 `createNewChatRoom`으로 새 방을 만들었으므로, 모든 방을 다시 조회하는 것이 좋습니다.
+            System.out.println(userEntity.getId());
             List<ChatRoom> allChatRooms = chatRoomService.getChatRooms(userEntity); // chatRoomService에 getAllChatRooms(UserEntity userEntity) 같은 메서드가 필요합니다.
+            System.out.println(allChatRooms.size());
             List<ChatRoomDto> allChatRoomNumbers=chatRoomService.getChatRoomNumbers(allChatRooms);
             // 응답에 담을 데이터를 Map으로 구성
             Map<String, Object> responseData = new HashMap<>();
-            responseData.put("new_room_id", newChatRoom.getId());
+//            responseData.put("new_room_id", newChatRoom.getId());
             responseData.put("all_rooms", allChatRoomNumbers); // ChatRoom 객체들이 JSON으로 직렬화됩니다.
 
             return CommonResponse.success(responseData);
@@ -407,7 +410,29 @@ public class ChatMessageController {
             }
     )
     @PostMapping("/send")
-    public CommonResponse sendChatMessage(@RequestParam("roomId") Long roomId, @RequestBody ChatMessageRequest chatMessageRequest, HttpServletRequest httpRequest){
+    public CommonResponse sendChatMessage(@RequestParam(value="roomId",required = false) Long roomId, @RequestBody ChatMessageRequest chatMessageRequest, HttpServletRequest httpRequest){
+        HttpSession session = httpRequest.getSession(true);
+
+        // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
+
+        // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
+        if (session == null) {
+            return CommonResponse.fail("세션이 존재하지 않습니다.");
+        }
+        String sessionId = session.getId();
+        if(roomId==null){
+            // 새 채팅방 생성하고 roomId가져오기
+            try {
+                // 1. 유저 확인/생성
+                UserEntity userEntity=userSessionService.getOrCreateGuestUser(sessionId);
+                ChatRoom chatRoom = chatRoomService.createNewChatRoom(userEntity);
+                roomId=chatRoom.getId();
+            } catch (Exception e) {
+                e.printStackTrace(); // 로그로 남기기 (혹은 log.error(...))
+
+                return CommonResponse.fail("채팅방 생성 중 오류가 발생했습니다: " + e.getMessage());
+            }
+        }
         try {
             // 1. roomid를 바탕으로 -> 채팅방 확인 -> 유저 확인
             UserEntity userEntity=chatRoomService.getUserEntityByRoomId(roomId);
@@ -417,7 +442,7 @@ public class ChatMessageController {
             chatRoomService.sendChatQueue(roomId, chatMessageRequest);
             // 1. 유저 확인/생성
             // 2. 채팅방 확인/생성
-            return CommonResponse.success(savedId);
+            return CommonResponse.success(roomId);
 
         } catch (Exception e) {
             e.printStackTrace(); // 로그로 남기기 (혹은 log.error(...))
