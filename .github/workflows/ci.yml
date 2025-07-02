@@ -305,8 +305,9 @@ jobs:
             # setsid와 nohup을 사용하여 애플리케이션을 완전히 백그라운드에서 실행합니다.
             # 표준 입력을 /dev/null로 리다이렉션하여 완전히 독립적인 프로세스로 만듭니다.
             # 마지막에 짧은 sleep을 추가하여 SSH 세션이 닫히기 전에 프로세스가 완전히 분리되도록 돕습니다.
-            setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar < /dev/null > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
-            # 백그라운드 프로세스를 셸의 작업 목록에서 제거하여 SIGHUP 시그널을 받지 않도록 합니다.
-            disown
-            # 프로세스가 완전히 분리될 시간을 충분히 줍니다.
+            java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar
+            # setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar < /dev/null > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
+            # # 백그라운드 프로세스를 셸의 작업 목록에서 제거하여 SIGHUP 시그널을 받지 않도록 합니다.
+            # disown
+            # # 프로세스가 완전히 분리될 시간을 충분히 줍니다.
             sleep 5
