@@ -114,8 +114,23 @@ jobs:
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
-            pkill -f 'thefirsttake-0.0.1-SNAPSHOT.jar' || true
-            nohup java -jar /home/ubuntu/app/deploy/thefirsttake-0.0.1-SNAPSHOT.jar > /home/ubuntu/app/app.log 2>&1 &
+                  # 기존 프로세스 종료
+                  pkill -f 'thefirsttake-0.0.1-SNAPSHOT.jar' || true
+                  sleep 5 # 프로세스가 완전히 종료될 시간을 줍니다.
+
+                  # 환경 변수들을 명시적으로 export 합니다.
+                  # your_db_host, your_db_port, your_db_name은 실제 값으로 대체하거나
+                  # GitHub Secrets에 추가하여 ${{ secrets.POSTGRES_HOST }} 등으로 사용하세요.
+                  export SPRING_DATASOURCE_URL="jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require"
+                  export SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
+                  export SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+                  export SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
+                  export LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
+                  export LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
+                  export REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
+
+                  # setsid와 nohup을 함께 사용하여 완전히 백그라운드에서 실행
+                  setsid nohup java -jar /home/${{ env.SERVER_USER }}/app/thefirsttake-0.0.1-SNAPSHOT.jar > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
 
           # script: |
           #   pkill -f 'java -jar' || true
