@@ -1,21 +1,31 @@
+server:
+  port: 8000
 spring:
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  redis:
+    host: ${REDIS_ENDPOINT}
+    port: 6379
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+    url: jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    jpa:
+      hibernate:
+        ddl-auto: update
+      show-sql: true
+      properties:
+        hibernate:
+          format_sql: true
   security:
     oauth2:
       client:
         registration:
           kakao:
-            client-id: test-client-id
-            client-secret: test-client-secret
-            redirect-uri: http://localhost:8080/api/auth/callback/kakao
+            client-id: "client-id"
+            client-secret: "client-secret"
+            redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
             authorization-grant-type: authorization_code
             client-name: Kakao
             scope: profile_nickname, account_email
@@ -25,6 +35,40 @@ spring:
             token-uri: https://kauth.kakao.com/oauth/token
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
-
 jwt:
-  secret: test-secret
+  secret: "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111"
+llm:
+  server:
+    host: ${LLM_SERVER_HOST}
+    port: ${LLM_SERVER_PORT}
+
+#spring:
+#  datasource:
+#    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+#    driver-class-name: org.h2.Driver
+#    username: sa
+#    password:
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#  security:
+#    oauth2:
+#      client:
+#        registration:
+#          kakao:
+#            client-id: test-client-id
+#            client-secret: test-client-secret
+#            redirect-uri: http://localhost:8080/api/auth/callback/kakao
+#            authorization-grant-type: authorization_code
+#            client-name: Kakao
+#            scope: profile_nickname, account_email
+#        provider:
+#          kakao:
+#            authorization-uri: https://kauth.kakao.com/oauth/authorize
+#            token-uri: https://kauth.kakao.com/oauth/token
+#            user-info-uri: https://kapi.kakao.com/v2/user/me
+#            user-name-attribute: id
+#
+#jwt:
+#  secret: test-secret
