@@ -110,4 +110,3 @@ jobs:
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
             pkill -f 'java -jar' || true
-            nohup java -jar /home/${{ env.SERVER_USER }}/app/$(basename ./deploy/*.jar) > /home/${{ env.SERVER_USER }}/app/app.log 2>&1 &
