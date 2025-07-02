@@ -14,13 +14,13 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    jpa:
-      hibernate:
-        ddl-auto: update   # create, create-drop, update, none ? ??
-      show-sql: true       # ???? SQL ??? ????
-      properties:
-        hibernate:
-          format_sql: true # SQL ?? ?? ??
+jpa:
+  hibernate:
+    ddl-auto: update   # create, create-drop, update, none ? ??
+  show-sql: true       # ???? SQL ??? ????
+  properties:
+    hibernate:
+      format_sql: true # SQL ?? ?? ??
   security:
     oauth2:
       client:
