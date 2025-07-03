@@ -318,7 +318,6 @@ public class ChatMessageController {
                     @Parameter(
                             name = "roomId",
                             description = "메시지를 보낼 채팅방의 ID",
-                            required = true,
                             schema = @Schema(type = "integer", format = "int64")
                     )
             },
