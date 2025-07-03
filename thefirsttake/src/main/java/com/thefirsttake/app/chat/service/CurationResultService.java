@@ -22,7 +22,14 @@ public class CurationResultService {
     @Value("${llm.server.port}")
     private String llmServerPort;
 
-    public String getResult(String promptKey, String promptValue){
+    public String getResult(String promptKey, String promptValue, int curationNumber){
+        if(curationNumber==1){
+            promptValue+="라는 사용자의 질문에 대해 웬만하면 포멀한 스타일로 스타일 한 개만 추천해줘";
+        }else if(curationNumber==2){
+            promptValue+="라는 사용자의 질문에 대해 웬만하면 캐쥬얼한 스타일로 스타일 한 개만 추천해줘";
+        }else if(curationNumber==3){
+            promptValue+="라는 사용자의 질문에 대해 웬만하면 시티보이 스타일로 스타일 한 개만 추천해줘";
+        }
         Map<String, String> requestMap = new HashMap<>();
         requestMap.put("prompt", promptValue);
 

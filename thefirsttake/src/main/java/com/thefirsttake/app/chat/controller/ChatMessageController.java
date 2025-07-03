@@ -602,14 +602,8 @@ public class ChatMessageController {
     )
     @GetMapping("/receive")
     public CommonResponse receiveChatMessage(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
-//        UserEntity userEntity=chatRoomService.getUserEntityByRoomId(roomId);
         List<String> responseMessage=chatMessageWorkerService.processChatQueue(roomId);
 
-//        String redisKey = "chat_response:" + sessionId;
-//
-//        // Redis에서 메시지를 pop (꺼내고 제거)
-//        String responseMessage = redisTemplate.opsForList().leftPop(redisKey);
-//
         if (responseMessage == null) {
             return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
         }

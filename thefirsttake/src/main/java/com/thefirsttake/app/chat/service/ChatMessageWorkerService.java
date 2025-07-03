@@ -22,7 +22,6 @@ public class ChatMessageWorkerService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMessageProcessorService chatMessageProcessorService;
     private final ChatRoomService chatRoomService;
-//    @Scheduled(fixedDelay = 5000)
     public List<String> processChatQueue(Long roomId) {
         String json = redisTemplate.opsForList().leftPop("chat_queue:"+roomId);
         if (json != null) {
