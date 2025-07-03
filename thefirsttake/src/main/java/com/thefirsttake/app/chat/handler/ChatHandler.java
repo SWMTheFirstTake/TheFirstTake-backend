@@ -1,15 +1,14 @@
 package com.thefirsttake.app.chat.handler;
 
-import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
+import com.thefirsttake.app.chat.service.ChatCurationGeneratorService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @RequiredArgsConstructor
 public class ChatHandler extends TextWebSocketHandler {
 //    private final RestTemplate restTemplate;
-    private final ChatMessageProcessorService chatMessageProcessorService;
+    private final ChatCurationGeneratorService chatCurationGeneratorService;
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         System.out.println("Client connected: " + session.getId());

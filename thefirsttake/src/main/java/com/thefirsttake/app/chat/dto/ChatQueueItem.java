@@ -11,4 +11,5 @@ public class ChatQueueItem {
 //    private String sessionId;
     private Long roomId;
     private String message;
+    private int retryCount;
 }

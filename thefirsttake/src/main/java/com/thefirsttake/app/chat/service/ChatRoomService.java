@@ -9,11 +9,14 @@ import com.thefirsttake.app.chat.entity.ChatMessage;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.repository.ChatMessageRepository;
 import com.thefirsttake.app.chat.repository.ChatRoomRepository;
+import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.user.entity.UserEntity;
+import com.thefirsttake.app.common.user.service.UserSessionService;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -22,14 +25,18 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final UserSessionService userSessionService;
     private final RedisTemplate<String, String> redisTemplate; // Redis 주입
     private final ObjectMapper objectMapper;
     @Value("${spring.redis.host}")
@@ -52,24 +59,8 @@ public class ChatRoomService {
     }
     @Transactional
     public List<ChatRoom> getChatRooms(UserEntity userEntity) {
-        // 1. 해당 유저의 모든 채팅방을 조회합니다.
+        // 해당 유저의 모든 채팅방을 조회합니다.
         List<ChatRoom> chatRooms = chatRoomRepository.findByUser(userEntity);
-
-        // 2. 만약 조회된 채팅방이 하나도 없다면, 새로운 기본 채팅방을 생성하고 리스트에 추가합니다.
-//        if (chatRooms.isEmpty()) {
-//            ChatRoom newRoom = new ChatRoom();
-//            newRoom.setUser(userEntity);
-//            newRoom.setTitle("기본 채팅방"); // 적절한 기본 제목 설정
-//            newRoom.setCreatedAt(LocalDateTime.now()); // 생성 시간 설정
-//
-//            ChatRoom savedRoom = chatRoomRepository.save(newRoom); // DB에 저장
-//            chatRooms.add(savedRoom); // 새로 생성된 방을 리스트에 추가
-//        }
-
-        // 3. (새로 생성된 방이 있다면 그것 포함하여) 해당 유저의 모든 채팅방 리스트를 반환합니다.
-        // 만약 항상 새로운 방이 생성되더라도 기존 방들을 다시 조회해서 포함하고 싶다면
-        // if (chatRooms.isEmpty()) 로직 후에 findByUser(userEntity)를 다시 호출해도 됩니다.
-        // 하지만 위의 로직은 새로 만든 방을 직접 리스트에 추가하므로 굳이 다시 조회할 필요는 없습니다.
         return chatRooms;
     }
 
@@ -95,7 +86,7 @@ public class ChatRoomService {
         return chatRoom.getUser();
     }
     public Long saveUserMessage(UserEntity userEntity, ChatMessageRequest chatMessageRequest, Long roomId) {
-        // 1. roomId를 사용하여 ChatRoom 엔티티를 조회합니다.
+        // roomId를 사용하여 ChatRoom 엔티티를 조회합니다.
         // 해당 ID의 채팅방이 존재하지 않으면 예외를 발생시킵니다.
         ChatRoom chatRoom = getRoomById(roomId);
 
@@ -114,6 +105,7 @@ public class ChatRoomService {
         ChatQueueItem queueItem = ChatQueueItem.builder()
                 .roomId(roomId)
                 .message(chatMessageRequest.getContent())
+                .retryCount(0)
                 .build();
         try {
             String json = objectMapper.writeValueAsString(queueItem);
@@ -125,5 +117,43 @@ public class ChatRoomService {
         } catch (Exception e) {
             throw new RuntimeException("❌ 기타 Redis 작업 실패", e);
         }
+    }
+    public Long createChatRoom(String sessionId) {
+        try {
+            // 1. 유저 확인/생성
+            UserEntity userEntity = userSessionService.getOrCreateGuestUser(sessionId);
+
+            // 2. chatRoom 테이블에 해당 유저의 이름을 가지는 채팅방 하나 더 생성
+            ChatRoom chatRoom = createNewChatRoom(userEntity); // chatRoomService의 메서드 사용
+
+            // 3. 생성된 새로운 채팅방의 아이디 값을 반환
+            return chatRoom.getId();
+
+        } catch (Exception e) {
+            // 원본 예외와 함께 오류 메시지를 로그로 남깁니다.
+            log.error("❌ 채팅방 생성 중 오류가 발생했습니다: {}", e.getMessage(), e);
+            // 커스텀 예외를 던져서 호출하는 쪽(컨트롤러 등)에서 처리하도록 합니다.
+            throw new RuntimeException("채팅방 생성 중 오류가 발생했습니다.", e);
+        }
+    }
+    /**
+     * 사용자 세션 ID를 기반으로 해당 유저의 모든 채팅방 DTO 목록을 조회합니다.
+     * 이 메서드가 컨트롤러에서 직접 호출될 핵심 비즈니스 로직입니다.
+     */
+    @Transactional(readOnly = true) // 읽기 전용 트랜잭션으로 성능 최적화
+    public List<ChatRoomDto> getAllChatRoomsForUser(String sessionId) {
+        // 1. 유저 확인
+        // UserSessionService에서 사용자 정보를 가져옵니다.
+        // 만약 유저가 없으면 예외를 던지도록 getUser 메서드를 수정하거나,
+        // Optional<UserEntity>를 반환하도록 하여 여기서 처리할 수 있습니다.
+        UserEntity userEntity = userSessionService.getUser(sessionId); // getUser가 Optional을 반환한다면 .orElseThrow(...)
+
+        // 2. 해당 유저의 모든 ChatRoom 엔티티 목록 가져오기
+        List<ChatRoom> chatRooms = chatRoomRepository.findByUser(userEntity);
+
+        // 3. ChatRoom 엔티티 목록을 ChatRoomDto 목록으로 변환
+        return chatRooms.stream()
+                .map(ChatRoomDto::new) // ChatRoom -> ChatRoomDto 변환
+                .collect(Collectors.toList());
     }
 }

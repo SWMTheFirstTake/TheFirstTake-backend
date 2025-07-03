@@ -1,7 +1,7 @@
 package com.thefirsttake.app.config;
 
 import com.thefirsttake.app.chat.handler.ChatHandler;
-import com.thefirsttake.app.chat.service.ChatMessageProcessorService;
+import com.thefirsttake.app.chat.service.ChatCurationGeneratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,14 +13,14 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
-    private final ChatMessageProcessorService chatMessageProcessorService;
+    private final ChatCurationGeneratorService chatCurationGeneratorService;
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatWebSocketHandler(), "/api/chat").setAllowedOrigins("*");
     }
     @Bean
     public ChatHandler chatWebSocketHandler() {
-        return new ChatHandler(chatMessageProcessorService);
+        return new ChatHandler(chatCurationGeneratorService);
     }
 }
 
