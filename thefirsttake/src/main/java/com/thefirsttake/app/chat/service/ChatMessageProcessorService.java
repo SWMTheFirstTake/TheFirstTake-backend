@@ -30,7 +30,7 @@ public class ChatMessageProcessorService {
         // 세 번째 AI
         currentPromptValue=promptValueService.getPrompt(promptKey,userInput,3);
         String cityBoyCurationResult=curationResultService.getResult(promptKey,currentPromptValue);
-        cityBoyCurationResult+="3번째 AI"
+        cityBoyCurationResult+="3번째 AI";
         // 3. 프롬프트밸류+현재 큐레이션 결과를 저장
         promptCacheService.savePrompt(promptKey,currentPromptValue+curationResult+tmpCurationResult+currentPromptValue);
 
