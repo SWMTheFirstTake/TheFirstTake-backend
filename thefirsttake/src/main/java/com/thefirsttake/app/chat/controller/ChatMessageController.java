@@ -173,7 +173,7 @@ public class ChatMessageController {
                 )
         }
 )
-@PostMapping("/rooms/history")
+@GetMapping("/rooms/history")
     public CommonResponse getOrCreateChatRoom(HttpServletRequest httpRequest){
         HttpSession session = httpRequest.getSession(true);
 
@@ -188,15 +188,18 @@ public class ChatMessageController {
         System.out.println(sessionId);
         try {
             // 1. 유저 확인/생성
-            UserEntity userEntity = userSessionService.getOrCreateGuestUser(sessionId);
+//            UserEntity userEntity = userSessionService.getOrCreateGuestUser(sessionId);
+            UserEntity userEntity = userSessionService.getUser(sessionId);
+            if(userEntity==null){
 
+            }
             // 2. 새로운 채팅방 생성 (무조건 생성)
 //            ChatRoom newChatRoom = chatRoomService.createNewChatRoom(userEntity);
 
             // 3. 해당 유저의 모든 채팅방 목록 가져오기 (새로 생성된 방 포함)
             // chatRoomService.getOrCreateChatRoom은 기존 방이 없으면 하나 만들고, 있으면 기존 방을 모두 반환합니다.
             // 여기서는 `createNewChatRoom`으로 새 방을 만들었으므로, 모든 방을 다시 조회하는 것이 좋습니다.
-            System.out.println(userEntity.getId());
+//            System.out.println(userEntity.getId());
             List<ChatRoom> allChatRooms = chatRoomService.getChatRooms(userEntity); // chatRoomService에 getAllChatRooms(UserEntity userEntity) 같은 메서드가 필요합니다.
             System.out.println(allChatRooms.size());
             List<ChatRoomDto> allChatRoomNumbers=chatRoomService.getChatRoomNumbers(allChatRooms);

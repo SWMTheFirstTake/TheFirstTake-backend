@@ -9,6 +9,12 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserSessionService {
     private final UserEntityRepository userEntityRepository;
+    public UserEntity getUser(String sessionId){
+        // findBySessionId는 Optional<UserEntity>를 반환합니다.
+        // Optional 안에 UserEntity가 있으면 그 UserEntity를 반환하고,
+        // 없으면 null을 반환합니다.
+        return userEntityRepository.findBySessionId(sessionId).orElse(null);
+    }
     public UserEntity getOrCreateGuestUser(String sessionId){
         return userEntityRepository.findBySessionId(sessionId)
                 .orElseGet(()->{
