@@ -117,15 +117,17 @@ public class ChatController {
     )
     @GetMapping("/rooms/history")
     public CommonResponse getAllChatRooms(HttpServletRequest httpRequest){
-        HttpSession session = httpRequest.getSession(true);
+        HttpSession session = httpRequest.getSession(false);
         // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
-
         // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
         if (session == null) {
-            return CommonResponse.fail("세션이 존재하지 않습니다.");
+            System.out.println("history: 세션 새로 생성");
+            session=httpRequest.getSession(true);
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
         }
 
         String sessionId = session.getId();
+        System.out.println(sessionId);
         try {
             // ChatRoomService에서 모든 로직을 처리한 DTO 목록을 바로 받아옵니다.
             List<ChatRoomDto> allChatRoomDtos = chatRoomService.getAllChatRoomsForUser(sessionId);
@@ -335,11 +337,14 @@ public class ChatController {
     )
     @PostMapping("/send")
     public CommonResponse sendChatMessage(@RequestParam(value="roomId",required = false) Long roomId, @RequestBody ChatMessageRequest chatMessageRequest, HttpServletRequest httpRequest){
-        HttpSession session = httpRequest.getSession(true);
+        HttpSession session = httpRequest.getSession(false);
         if (session == null) {
-            return CommonResponse.fail("세션이 존재하지 않습니다.");
+            System.out.println("send: 세션 새로 생성");
+            session=httpRequest.getSession(true);
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
         }
         String sessionId = session.getId();
+        System.out.println(sessionId);
         try {
             // 새롭게 분리된 서비스 메서드를 호출
             Long resultRoomId = chatService.handleChatMessageSend(roomId, chatMessageRequest, sessionId);
@@ -443,6 +448,11 @@ public class ChatController {
     )
     @GetMapping("/receive")
     public CommonResponse receiveChatMessage(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
+        HttpSession session = httpRequest.getSession(false);
+        if (session == null) {
+            session=httpRequest.getSession(true);
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
+        }
         // 해당 roomId를 가지는 채팅방에서 처리가 가능한 메시지가 있는지 확인
         List<String> responseMessage= chatQueueConsumerService.processChatQueue(roomId);
 
