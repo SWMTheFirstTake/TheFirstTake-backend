@@ -38,6 +38,12 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// Apache HttpClient 5.x 버전을 명시적으로 추가
+//	implementation 'org.apache.hc.client5:httpclient5:5.2.1'
+//	implementation 'org.apache.hc.core5:httpcore5:5.2.4'
+
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'

@@ -146,95 +146,95 @@ public class ChatController {
         }
     }
 
-    @Operation(
-            summary = "새로운 채팅방 생성",
-            description = "현재 세션의 사용자에 대해 항상 새로운 채팅방을 생성합니다. 기존 채팅방이 있어도 새로운 방이 생성되며, 생성된 채팅방의 ID를 반환합니다."
-                    ,
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "성공 시 새로 생성된 채팅방 ID 반환",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = CommonResponse.class),
-                                    examples = @ExampleObject(
-                                            name = "성공 응답 예시",
-                                            summary = "새로 생성된 채팅방 ID",
-                                            value = """
-                    {
-                      "status": "success",
-                      "message": "요청 성공",
-                      "data": 56789
-                    }
-                    """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "400",
-                            description = "세션 없음 또는 유효하지 않은 요청",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "세션 없음 예시",
-                                            summary = "세션이 존재하지 않는 경우",
-                                            value = """
-                    {
-                      "status": "fail",
-                      "message": "세션이 존재하지 않습니다.",
-                      "data": null
-                    }
-                    """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500",
-                            description = "서버 내부 오류",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "서버 오류 예시",
-                                            summary = "예상치 못한 서버 오류 발생",
-                                            value = """
-                    {
-                      "status": "fail",
-                      "message": "채팅방 생성 중 오류가 발생했습니다: [오류 메시지]",
-                      "data": null
-                    }
-                    """
-                                    )
-                            )
-                    )
-            }
-    )
-    @PostMapping("/rooms/new")
-    public CommonResponse createChatRoom(HttpServletRequest httpRequest){
-        // 해당 유저에 대해 새로운 방 생성
-        // 1. 유저 확인/생성
-        // 2. chatRoom테이블에 하나 더 생성. 이 때 user_id는 userEntity의 것이어야함.
-        // 3. 생성된 새로운 채팅방의 id값 반환
-        HttpSession session = httpRequest.getSession(true);
-
-        // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
-
-        // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
-        if (session == null) {
-            return CommonResponse.fail("세션이 존재하지 않습니다.");
-        }
-
-        String sessionId = session.getId();
-        try {
-            // chatRoomService.createChatRoom 메서드에서 던진 예외를 여기서 잡습니다.
-            Long newRoomId = chatRoomService.createChatRoom(sessionId);
-            return CommonResponse.success(newRoomId); // 성공 시 생성된 roomId 반환
-        }catch (Exception e) {
-            // 혹시 ChatCreationException 외의 예상치 못한 다른 예외가 발생할 경우를 대비합니다.
-            // 이 경우, 일반적인 오류 메시지를 반환하거나, e.getMessage()를 포함할 수 있습니다.
-            // log.error("예상치 못한 오류 발생", e); // 실제 사용 시에는 로그를 남기는 것이 좋습니다.
-            return CommonResponse.fail("채팅방 생성 중 알 수 없는 오류가 발생했습니다.");
-        }
-    }
+//    @Operation(
+//            summary = "새로운 채팅방 생성",
+//            description = "현재 세션의 사용자에 대해 항상 새로운 채팅방을 생성합니다. 기존 채팅방이 있어도 새로운 방이 생성되며, 생성된 채팅방의 ID를 반환합니다."
+//                    ,
+//            responses = {
+//                    @ApiResponse(
+//                            responseCode = "200",
+//                            description = "성공 시 새로 생성된 채팅방 ID 반환",
+//                            content = @Content(
+//                                    mediaType = "application/json",
+//                                    schema = @Schema(implementation = CommonResponse.class),
+//                                    examples = @ExampleObject(
+//                                            name = "성공 응답 예시",
+//                                            summary = "새로 생성된 채팅방 ID",
+//                                            value = """
+//                    {
+//                      "status": "success",
+//                      "message": "요청 성공",
+//                      "data": 56789
+//                    }
+//                    """
+//                                    )
+//                            )
+//                    ),
+//                    @ApiResponse(
+//                            responseCode = "400",
+//                            description = "세션 없음 또는 유효하지 않은 요청",
+//                            content = @Content(
+//                                    mediaType = "application/json",
+//                                    examples = @ExampleObject(
+//                                            name = "세션 없음 예시",
+//                                            summary = "세션이 존재하지 않는 경우",
+//                                            value = """
+//                    {
+//                      "status": "fail",
+//                      "message": "세션이 존재하지 않습니다.",
+//                      "data": null
+//                    }
+//                    """
+//                                    )
+//                            )
+//                    ),
+//                    @ApiResponse(
+//                            responseCode = "500",
+//                            description = "서버 내부 오류",
+//                            content = @Content(
+//                                    mediaType = "application/json",
+//                                    examples = @ExampleObject(
+//                                            name = "서버 오류 예시",
+//                                            summary = "예상치 못한 서버 오류 발생",
+//                                            value = """
+//                    {
+//                      "status": "fail",
+//                      "message": "채팅방 생성 중 오류가 발생했습니다: [오류 메시지]",
+//                      "data": null
+//                    }
+//                    """
+//                                    )
+//                            )
+//                    )
+//            }
+//    )
+//    @PostMapping("/rooms/new")
+//    public CommonResponse createChatRoom(HttpServletRequest httpRequest){
+//        // 해당 유저에 대해 새로운 방 생성
+//        // 1. 유저 확인/생성
+//        // 2. chatRoom테이블에 하나 더 생성. 이 때 user_id는 userEntity의 것이어야함.
+//        // 3. 생성된 새로운 채팅방의 id값 반환
+//        HttpSession session = httpRequest.getSession(true);
+//
+//        // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
+//
+//        // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
+//        if (session == null) {
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
+//        }
+//
+//        String sessionId = session.getId();
+//        try {
+//            // chatRoomService.createChatRoom 메서드에서 던진 예외를 여기서 잡습니다.
+//            Long newRoomId = chatRoomService.createChatRoom(sessionId);
+//            return CommonResponse.success(newRoomId); // 성공 시 생성된 roomId 반환
+//        }catch (Exception e) {
+//            // 혹시 ChatCreationException 외의 예상치 못한 다른 예외가 발생할 경우를 대비합니다.
+//            // 이 경우, 일반적인 오류 메시지를 반환하거나, e.getMessage()를 포함할 수 있습니다.
+//            // log.error("예상치 못한 오류 발생", e); // 실제 사용 시에는 로그를 남기는 것이 좋습니다.
+//            return CommonResponse.fail("채팅방 생성 중 알 수 없는 오류가 발생했습니다.");
+//        }
+//    }
 
     @Operation(
             summary = "채팅 메시지 전송",
