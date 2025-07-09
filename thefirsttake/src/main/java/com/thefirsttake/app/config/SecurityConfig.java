@@ -133,7 +133,8 @@ public class SecurityConfig {
                 "http://localhost:3000",
                 "http://localhost:5500",
                 "http://172.16.101.234:3000",
-                "http://3.36.38.106:3000"
+                "http://3.36.38.106:3000",
+                "http://the-first-take.com"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
