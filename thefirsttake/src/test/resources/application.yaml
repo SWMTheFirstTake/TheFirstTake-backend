@@ -1,4 +1,7 @@
 server:
+  servlet:
+    session:
+      timeout: 6000m
   port: 8000
 spring:
   jackson:
