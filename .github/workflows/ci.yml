@@ -18,6 +18,8 @@ jobs:
       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+      AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
 
     steps:
       - name: Checkout code
@@ -54,6 +56,8 @@ jobs:
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+      AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
 
     steps:
       - name: Download build artifact
