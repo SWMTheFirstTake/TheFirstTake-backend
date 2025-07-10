@@ -11,6 +11,7 @@ import com.thefirsttake.app.chat.service.ChatRoomService;
 import com.thefirsttake.app.chat.service.ChatQueueConsumerService;
 import com.thefirsttake.app.chat.service.ChatService;
 import com.thefirsttake.app.common.response.CommonResponse;
+import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,7 +25,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +43,7 @@ public class ChatController {
     private final UserSessionService userSessionService;
     private final ChatRoomService chatRoomService;
     private final ChatService chatService;
+    private final S3Service s3Service;
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -258,7 +262,8 @@ public class ChatController {
                                     summary = "사용자가 보낸 채팅 메시지 내용",
                                     value = """
                     {
-                      "content": "내일 소개팅 가는데 입을 옷 추천해줘"
+                      "content": "내일 소개팅 가는데 입을 옷 추천해줘",
+                      "imageUrl": "https://thefirsttake-file-upload.s3.ap-northeast-2.amazonaws.com/AA12CAC8A9A04D381E787DEF432ED8FC_fsttest.png"
                     }
                     """
                             )
@@ -345,6 +350,8 @@ public class ChatController {
         }
         String sessionId = session.getId();
         System.out.println(sessionId);
+        System.out.println(chatMessageRequest.getContent());
+        System.out.println(chatMessageRequest.getImageUrl());
         try {
             // 새롭게 분리된 서비스 메서드를 호출
             Long resultRoomId = chatService.handleChatMessageSend(roomId, chatMessageRequest, sessionId);
@@ -352,6 +359,115 @@ public class ChatController {
         } catch (Exception e) {
             log.error("메시지 전송 중 오류 발생: {}", e.getMessage(), e);
             return CommonResponse.fail("메시지 전송 중 오류가 발생했습니다: " + e.getMessage());
+        }
+
+    }
+
+    @Operation(
+            summary = "이미지 파일 업로드",
+            description = "사용자가 업로드한 이미지 파일을 AWS S3에 저장하고, 저장된 파일의 URL을 반환합니다. 세션 ID를 기반으로 파일명을 생성하여 사용자별로 구분됩니다.",
+
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "이미지 업로드 성공 시 S3에 저장된 파일의 URL 반환",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = CommonResponse.class),
+                                    examples = @ExampleObject(
+                                            name = "성공 응답 예시",
+                                            summary = "S3에 저장된 이미지 URL 반환",
+                                            value = """
+                    {
+                      "status": "success",
+                      "message": "요청 성공",
+                      "data": "https://thefirsttake-file-upload.s3.ap-northeast-2.amazonaws.com/sessionId_uuid_filename.jpg"
+                    }
+                    """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "유효하지 않은 요청 데이터 (파일이 없거나 이미지가 아닌 경우)",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = {
+                                            @ExampleObject(
+                                                    name = "파일 없음 예시",
+                                                    summary = "업로드할 파일이 비어있는 경우",
+                                                    value = """
+                        {
+                          "status": "fail",
+                          "message": "파일이 비어있습니다",
+                          "data": null
+                        }
+                        """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "이미지 파일 아님 예시",
+                                                    summary = "이미지가 아닌 파일을 업로드한 경우",
+                                                    value = """
+                        {
+                          "status": "fail",
+                          "message": "이미지 파일만 업로드 가능합니다",
+                          "data": null
+                        }
+                        """
+                                            )
+                                    }
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "서버 내부 오류 (S3 업로드 실패 등)",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "서버 오류 예시",
+                                            summary = "S3 업로드 중 예상치 못한 오류 발생",
+                                            value = """
+                    {
+                      "status": "fail",
+                      "message": "업로드 실패",
+                      "data": null
+                    }
+                    """
+                                    )
+                            )
+                    )
+            }
+    )
+    @PostMapping(value="/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CommonResponse uploadImage(
+            @Parameter(description = "업로드할 이미지 파일 (JPG, PNG, GIF 등)")
+            @RequestParam("file") MultipartFile file, HttpServletRequest httpRequest){
+
+        HttpSession session = httpRequest.getSession(false);
+        if (session == null) {
+            System.out.println("send: 세션 새로 생성");
+            session=httpRequest.getSession(true);
+//            return CommonResponse.fail("세션이 존재하지 않습니다.");
+        }
+        String sessionId = session.getId();
+        System.out.println(sessionId);
+        try {
+            // 파일 검증
+            if (file.isEmpty()) {
+                return CommonResponse.fail("파일이 비어있습니다");
+            }
+
+            if (!file.getContentType().startsWith("image/")) {
+                return CommonResponse.fail("이미지 파일만 업로드 가능합니다");
+            }
+
+            // S3에 업로드
+            String fileUrl = s3Service.uploadFile(file,sessionId);
+
+            return CommonResponse.success(fileUrl);
+
+        } catch (Exception e) {
+            return CommonResponse.fail("업로드 실패");
         }
 
     }

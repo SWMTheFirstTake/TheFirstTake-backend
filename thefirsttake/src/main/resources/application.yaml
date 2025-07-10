@@ -3,6 +3,13 @@ server:
     session:
       timeout: 6000m
   port: 8000
+#  port: 8443
+#  ssl:
+#    enabled: true
+#    key-store: classpath:keystore.p12
+#    key-store-password: ${SSL_PW}
+#    key-store-type: PKCS12
+#    key-alias: springboot
 spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
@@ -10,9 +17,6 @@ spring:
     host: ${REDIS_ENDPOINT}
     port: 6379
   datasource:
-#    url: jdbc:postgresql://localhost:5432/postgres
-#    username: testuser
-#    password: pass1234
     url: jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
@@ -49,3 +53,12 @@ llm:
   server:
     host: ${LLM_SERVER_HOST}
     port: ${LLM_SERVER_PORT}
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region:
+      static: ap-northeast-2  # 서울 리전
+    s3:
+      bucket: thefirsttake-file-upload
