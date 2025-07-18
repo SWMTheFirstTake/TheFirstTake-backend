@@ -27,10 +27,10 @@ public class ChatCurationGeneratorService {
             List<String> curationResults = new ArrayList<>();
             StringBuilder promptUpdateBuilder = new StringBuilder(currentPromptValue);
             List<String> curationTypes=new ArrayList<>();
-            curationTypes.add("저는 체형분석과 핏감을 중심으로 추천을 해드려요!");
-            curationTypes.add("저는 최신트렌드, 인플루언서의 스타일을 중심으로 추천을 해드려요!");
-            curationTypes.add("저는 피부톤에 어울리는 색상 조합을 바탕으로 추천을 해드려요!");
-            curationTypes.add("저는 종합적으로 딱 하나의 추천을 해드려요!");
+            curationTypes.add("저는 체형분석과 핏감을 중심으로 추천을 해드려요! \n");
+            curationTypes.add("저는 최신트렌드, 인플루언서의 스타일을 중심으로 추천을 해드려요! \n");
+            curationTypes.add("저는 피부톤에 어울리는 색상 조합을 바탕으로 추천을 해드려요! \n");
+            curationTypes.add("저는 종합적으로 딱 하나의 추천을 해드려요! \n");
             // 전문가별 결과 처리 (기존 try-catch 블록의 내용을 대체)
             for (int i = 0; i < expertAnalyses.size(); i++) {
                 Map<String, Object> expertResult = expertAnalyses.get(i);
