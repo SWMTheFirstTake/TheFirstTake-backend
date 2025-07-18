@@ -52,8 +52,7 @@ public class ChatCurationService {
             requestMap.put("context_info", contextInfo);
 
             // FastAPI 전문가 체인 API 호출
-//            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
-            String fastApiUrl = "http://" + "3.35.85.182" + ":" + "6020" + "/api/expert/chain";
+            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
             ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
 
             ApiResponse body = response.getBody();
