@@ -1,0 +1,84 @@
+package com.thefirsttake.app.chat.service;
+
+import com.thefirsttake.app.chat.constant.ChatAgentConstants;
+import com.thefirsttake.app.common.response.ApiResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * AI 응답 생성 전담 서비스
+ * - 전문가 체인 API 호출
+ * - 단일 AI 응답 생성
+ * - 외부 LLM 서버와의 통신
+ */
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class ChatAIService {
+    private final RestTemplate restTemplate;
+
+    @Value("${llm.server.host}")
+    private String llmServerHost;
+
+    @Value("${llm.server.port}")
+    private String llmServerPort;
+
+    /**
+     * 전문가 체인 API 호출하여 다중 전문가 분석 결과 반환
+     */
+    public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId, String promptValue) {
+        try {
+            Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId, promptValue);
+            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
+            
+            ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
+            ApiResponse body = response.getBody();
+            
+            if (body == null || body.getData() == null) {
+                throw new RuntimeException("FastAPI 서버로부터 유효한 응답을 받지 못했습니다.");
+            }
+
+            Map<String, Object> responseData = (Map<String, Object>) body.getData();
+            List<Map<String, Object>> expertAnalyses = (List<Map<String, Object>>) responseData.get("expert_analyses");
+
+            if (expertAnalyses == null || expertAnalyses.isEmpty()) {
+                throw new RuntimeException("전문가 분석 결과가 비어있습니다.");
+            }
+
+            return expertAnalyses;
+
+        } catch (Exception e) {
+            log.error("전문가 체인 API 호출 실패: {}", e.getMessage(), e);
+            throw new RuntimeException("전문가 체인 분석 실패", e);
+        }
+    }
+
+    /**
+     * 전문가 체인 요청 데이터 구성
+     */
+    private Map<String, Object> buildExpertChainRequest(String userInput, Long roomId, String promptValue) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("user_input", userInput);
+        requestMap.put("room_id", roomId);
+
+        // 상수에서 에이전트 순서 가져오기
+        requestMap.put("expert_sequence", ChatAgentConstants.AGENT_SEQUENCE);
+
+        Map<String, Object> userProfile = new HashMap<>();
+        requestMap.put("user_profile", userProfile);
+
+        Map<String, Object> contextInfo = new HashMap<>();
+        contextInfo.put("previous_conversation", promptValue);
+        requestMap.put("context_info", contextInfo);
+
+        return requestMap;
+    }
+} 

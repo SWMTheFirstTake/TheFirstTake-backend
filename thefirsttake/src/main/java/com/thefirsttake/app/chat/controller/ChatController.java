@@ -1,15 +1,14 @@
 package com.thefirsttake.app.chat.controller;
 
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
+import com.thefirsttake.app.chat.dto.response.ChatAgentResponse;
 import com.thefirsttake.app.chat.dto.response.ChatRoomDto;
 import com.thefirsttake.app.chat.dto.response.ChatSessionHistoryResponse;
 import com.thefirsttake.app.chat.entity.ChatRoom;
-import com.thefirsttake.app.chat.service.ChatCurationGeneratorService;
-//import com.thefirsttake.app.chat.service.ChatMessageSaveService;
-import com.thefirsttake.app.chat.service.ChatRoomService;
-//import com.thefirsttake.app.chat.service.SendMessageWorkerService;
-import com.thefirsttake.app.chat.service.ChatQueueConsumerService;
-import com.thefirsttake.app.chat.service.ChatService;
+import com.thefirsttake.app.chat.service.ChatCurationOrchestrationService;
+import com.thefirsttake.app.chat.service.ChatRoomManagementService;
+import com.thefirsttake.app.chat.service.ChatQueueService;
+import com.thefirsttake.app.chat.service.ChatOrchestrationService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
@@ -38,11 +37,11 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class ChatController {
-    private final ChatCurationGeneratorService chatCurationGeneratorService;
-    private final ChatQueueConsumerService chatQueueConsumerService;
+    private final ChatCurationOrchestrationService chatCurationOrchestrationService;
+    private final ChatQueueService chatQueueService;
     private final UserSessionService userSessionService;
-    private final ChatRoomService chatRoomService;
-    private final ChatService chatService;
+    private final ChatRoomManagementService chatRoomManagementService;
+    private final ChatOrchestrationService chatOrchestrationService;
     private final S3Service s3Service;
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
@@ -133,8 +132,8 @@ public class ChatController {
         String sessionId = session.getId();
         System.out.println(sessionId);
         try {
-            // ChatRoomService에서 모든 로직을 처리한 DTO 목록을 바로 받아옵니다.
-            List<ChatRoomDto> allChatRoomDtos = chatRoomService.getAllChatRoomsForUser(sessionId);
+            // ChatRoomManagementService에서 모든 로직을 처리한 DTO 목록을 바로 받아옵니다.
+            List<ChatRoomDto> allChatRoomDtos = chatRoomManagementService.getAllChatRoomsForUser(sessionId);
 
             // 응답에 담을 데이터를 Map으로 구성 (컨트롤러에서 DTO를 한 번 더 감싸는 경우)
             Map<String, Object> responseData = new HashMap<>();
@@ -354,7 +353,7 @@ public class ChatController {
         System.out.println(chatMessageRequest.getImageUrl());
         try {
             // 새롭게 분리된 서비스 메서드를 호출
-            Long resultRoomId = chatService.handleChatMessageSend(roomId, chatMessageRequest, sessionId);
+            Long resultRoomId = chatOrchestrationService.handleChatMessageSend(roomId, chatMessageRequest, sessionId);
             return CommonResponse.success(resultRoomId);
         } catch (Exception e) {
             log.error("메시지 전송 중 오류 발생: {}", e.getMessage(), e);
@@ -473,8 +472,8 @@ public class ChatController {
     }
     
     @Operation(
-            summary = "채팅 응답 메시지 수신",
-            description = "Redis 큐에서 해당 채팅방에 대한 AI 응답 메시지가 있는 경우, 여러 개의 메시지를 한 번에 가져와 반환합니다.",
+            summary = "채팅 에이전트 응답 메시지 수신",
+            description = "Redis 큐에서 해당 채팅방에 대한 AI 에이전트 응답 메시지가 있는 경우, 여러 에이전트의 응답을 한 번에 가져와 반환합니다. 각 에이전트는 고유한 전문 분야를 가지고 있어 다양한 관점에서 패션 추천을 제공합니다.",
             parameters = {
                     @Parameter(
                             name = "roomId",
@@ -486,22 +485,48 @@ public class ChatController {
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "응답 메시지 수신 성공",
+                            description = "에이전트 응답 메시지 수신 성공",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = CommonResponse.class),
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
-                                            summary = "Redis에서 가져온 응답 메시지 리스트",
+                                            summary = "Redis에서 가져온 에이전트 응답 리스트",
                                             value = """
-                        {
-                          "status": "success",
-                          "message": "요청 성공",
-                          "data": [
-                            "당신의 소개팅은 어떤 분위기를 원하세요? 좀 더 캐주얼하고 편안한 느낌을 원하시면 깔끔한 셔츠와 슬랙스, 약간 더 포멀한 느낌을 원하시면 셔츠와 블레이저를 추천드릴게요.1번째 AI",
-                            "내일 소개팅이라면 깔끔하고 세련된 느낌이 좋겠어요. 단정한 셔츠에 슬림한 팬츠를 추천드려요. 색상은 무난하면서도 포인트를 줄 수 있는 베이지, 하얀색 또는 연한 파스텔 톤이 좋아요. 액세서리는 과하지 않게 심플한 목걸이나 귀걸이로 마무리하면 자연스럽고 매력적으로 보일 거예요. 편안하면서도 신경 쓴 모습이 가장 좋아요!2번째 AI"
-                          ]
-                        }
+                                            {
+                                                 "status": "success",
+                                                 "message": "요청 성공",
+                                                 "data": [
+                                                     {
+                                                         "agent_id": "style_analyst",
+                                                         "agent_name": "스타일 분석가",
+                                                         "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
+                                                         "message": "20대 남성으로 가정하고 추천드리겠습니다. '화이트 린넨 레귤러핏 셔츠와 차콜 데님 슬림핏 팬츠를 추천드려요. 시원하고 깔끔한 느낌으로 소개팅에 적합할 것입니다.'",
+                                                         "order": 1
+                                                     },
+                                                     {
+                                                         "agent_id": "trend_expert",
+                                                         "agent_name": "트렌드 전문가",
+                                                         "agent_role": "최신트렌드, 인플루언서의 스타일을 중심으로 추천해드려요!",
+                                                         "message": "라벤더 코튼 레귤러핏 셔츠와 화이트 린넨 슬림핏 팬츠를 추천드려요. 부드러운 색감과 시원한 소재로 소개팅에 편안하면서도 세련된 인상을 줄 수 있을 거예요.",
+                                                         "order": 2
+                                                     },
+                                                     {
+                                                         "agent_id": "color_expert",
+                                                         "agent_name": "컬러 전문가",
+                                                         "agent_role": "피부톤에 어울리는 색상 조합을 바탕으로 추천해드려요!",
+                                                         "message": "20대 남성으로 가정하고 추천드리면, \\"화이트 코튼 레귤러핏 셔츠와 네이비 울 슬림핏 팬츠를 추천드려요. 깔끔하고 세련된 인상을 주며, 소개팅에 적합한 조합이 될 것입니다.\\" \\n\\n이 조합은 시원한 느낌을 주면서도 격식을 갖추기에 좋은 선택입니다.",
+                                                         "order": 3
+                                                     },
+                                                     {
+                                                         "agent_id": "fitting_coordinator",
+                                                         "agent_name": "핏팅 코디네이터",
+                                                         "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
+                                                         "message": "소개팅을 위한 최적의 조합으로 \\"화이트 린넨 레귤러핏 셔츠와 네이비 데님 슬림핏 팬츠\\"를 추천드려요. 이 조합은 시원하고 깔끔한 느낌을 주어 소개팅에 적합합니다. 특히 화이트 셔츠는 어떤 상황에서든 좋은 인상을 줄 수 있으며, 네이비 팬츠는 세련된 분위기를 더해줄 것입니다. \\n\\n이 조합으로 자신감 있게 소개팅에 임하실 수 있을 거예요!",
+                                                         "order": 4
+                                                     }
+                                                 ]
+                                             }
                         """
                                     )
                             )
@@ -570,12 +595,12 @@ public class ChatController {
 //            return CommonResponse.fail("세션이 존재하지 않습니다.");
         }
         // 해당 roomId를 가지는 채팅방에서 처리가 가능한 메시지가 있는지 확인
-        List<String> responseMessage= chatQueueConsumerService.processChatQueue(roomId);
+        List<ChatAgentResponse> agentResponses = chatQueueService.processChatQueue(roomId);
 
-        if (responseMessage == null) {
+        if (agentResponses == null) {
             return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
         }
-        return CommonResponse.success(responseMessage);
+        return CommonResponse.success(agentResponses);
     }
 
 
