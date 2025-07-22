@@ -37,8 +37,8 @@ public class ChatAIService {
     public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId) {
         try {
             Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId);
-//            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
-            String fastApiUrl = "http://" + "localhost" + ":" + "6020" + "/api/expert/chain";
+            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
+//            String fastApiUrl = "http://" + "localhost" + ":" + "6020" + "/api/expert/chain";
             
             ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
             ApiResponse body = response.getBody();
