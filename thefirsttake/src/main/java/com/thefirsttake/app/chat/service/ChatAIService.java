@@ -34,10 +34,11 @@ public class ChatAIService {
     /**
      * 전문가 체인 API 호출하여 다중 전문가 분석 결과 반환
      */
-    public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId, String promptValue) {
+    public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId) {
         try {
-            Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId, promptValue);
-            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
+            Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId);
+//            String fastApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/chain";
+            String fastApiUrl = "http://" + "localhost" + ":" + "6020" + "/api/expert/chain";
             
             ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
             ApiResponse body = response.getBody();
@@ -64,7 +65,7 @@ public class ChatAIService {
     /**
      * 전문가 체인 요청 데이터 구성
      */
-    private Map<String, Object> buildExpertChainRequest(String userInput, Long roomId, String promptValue) {
+    private Map<String, Object> buildExpertChainRequest(String userInput, Long roomId) {
         Map<String, Object> requestMap = new HashMap<>();
         requestMap.put("user_input", userInput);
         requestMap.put("room_id", roomId);
@@ -75,9 +76,9 @@ public class ChatAIService {
         Map<String, Object> userProfile = new HashMap<>();
         requestMap.put("user_profile", userProfile);
 
-        Map<String, Object> contextInfo = new HashMap<>();
-        contextInfo.put("previous_conversation", promptValue);
-        requestMap.put("context_info", contextInfo);
+//        Map<String, Object> contextInfo = new HashMap<>();
+//        contextInfo.put("previous_conversation", promptValue);
+//        requestMap.put("context_info", contextInfo);
 
         return requestMap;
     }

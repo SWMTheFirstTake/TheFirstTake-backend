@@ -27,20 +27,23 @@ public class ChatCurationOrchestrationService {
      * 큐레이션 응답 생성 (메인 메서드) - 에이전트 정보 포함
      */
     public List<ChatAgentResponse> generateCurationResponse(String userInput, Long roomId) {
-        String promptKey = roomId + ":prompt";
-        String currentPromptValue = chatPromptService.getOrCreatePrompt(promptKey, userInput);
+//        String promptKey = roomId + ":prompt";
+//        String currentPromptValue = chatPromptService.getOrCreatePrompt(promptKey, userInput);
         
         try {
             // 전문가 체인 API 호출
+//            List<Map<String, Object>> expertAnalyses = chatAIService.getExpertChainResult(
+//                    userInput, roomId, currentPromptValue
+//            );
             List<Map<String, Object>> expertAnalyses = chatAIService.getExpertChainResult(
-                    userInput, roomId, currentPromptValue
+                    userInput, roomId
             );
 
             // 전문가 분석 결과 처리
             List<ChatAgentResponse> curationResults = processExpertAnalyses(expertAnalyses);
             
-            // 프롬프트 업데이트
-            updatePromptWithResults(promptKey, currentPromptValue, curationResults);
+//            // 프롬프트 업데이트
+//            updatePromptWithResults(promptKey, currentPromptValue, curationResults);
 
             return curationResults;
 
