@@ -473,7 +473,7 @@ public class ChatController {
     
     @Operation(
             summary = "채팅 에이전트 응답 메시지 수신",
-            description = "Redis 큐에서 해당 채팅방에 대한 AI 에이전트 응답 메시지가 있는 경우, 여러 에이전트의 응답을 한 번에 가져와 반환합니다. 각 에이전트는 고유한 전문 분야를 가지고 있어 다양한 관점에서 패션 추천을 제공합니다.",
+            description = "Redis 큐에서 해당 채팅방에 대한 AI 에이전트 응답 메시지가 있는 경우, 핏팅 코디네이터의 최종 종합 추천을 반환합니다. 이는 모든 전문가들의 의견을 종합한 최적의 패션 추천입니다.",
             parameters = {
                     @Parameter(
                             name = "roomId",
@@ -485,47 +485,24 @@ public class ChatController {
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "에이전트 응답 메시지 수신 성공",
+                            description = "핏팅 코디네이터 최종 추천 수신 성공",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = CommonResponse.class),
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
-                                            summary = "Redis에서 가져온 에이전트 응답 리스트",
+                                            summary = "Redis에서 가져온 핏팅 코디네이터 최종 추천",
                                             value = """
                                             {
                                                  "status": "success",
                                                  "message": "요청 성공",
-                                                 "data": [
-                                                     {
-                                                         "agent_id": "style_analyst",
-                                                         "agent_name": "스타일 분석가",
-                                                         "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
-                                                         "message": "20대 남성으로 가정하고 추천드리겠습니다. '화이트 린넨 레귤러핏 셔츠와 차콜 데님 슬림핏 팬츠를 추천드려요. 시원하고 깔끔한 느낌으로 소개팅에 적합할 것입니다.'",
-                                                         "order": 1
-                                                     },
-                                                     {
-                                                         "agent_id": "trend_expert",
-                                                         "agent_name": "트렌드 전문가",
-                                                         "agent_role": "최신트렌드, 인플루언서의 스타일을 중심으로 추천해드려요!",
-                                                         "message": "라벤더 코튼 레귤러핏 셔츠와 화이트 린넨 슬림핏 팬츠를 추천드려요. 부드러운 색감과 시원한 소재로 소개팅에 편안하면서도 세련된 인상을 줄 수 있을 거예요.",
-                                                         "order": 2
-                                                     },
-                                                     {
-                                                         "agent_id": "color_expert",
-                                                         "agent_name": "컬러 전문가",
-                                                         "agent_role": "피부톤에 어울리는 색상 조합을 바탕으로 추천해드려요!",
-                                                         "message": "20대 남성으로 가정하고 추천드리면, \\"화이트 코튼 레귤러핏 셔츠와 네이비 울 슬림핏 팬츠를 추천드려요. 깔끔하고 세련된 인상을 주며, 소개팅에 적합한 조합이 될 것입니다.\\" \\n\\n이 조합은 시원한 느낌을 주면서도 격식을 갖추기에 좋은 선택입니다.",
-                                                         "order": 3
-                                                     },
-                                                     {
-                                                         "agent_id": "fitting_coordinator",
-                                                         "agent_name": "핏팅 코디네이터",
-                                                         "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
-                                                         "message": "소개팅을 위한 최적의 조합으로 \\"화이트 린넨 레귤러핏 셔츠와 네이비 데님 슬림핏 팬츠\\"를 추천드려요. 이 조합은 시원하고 깔끔한 느낌을 주어 소개팅에 적합합니다. 특히 화이트 셔츠는 어떤 상황에서든 좋은 인상을 줄 수 있으며, 네이비 팬츠는 세련된 분위기를 더해줄 것입니다. \\n\\n이 조합으로 자신감 있게 소개팅에 임하실 수 있을 거예요!",
-                                                         "order": 4
-                                                     }
-                                                 ]
+                                                 "data": {
+                                                     "message": "전문가들의 다양한 의견을 종합해 보았습니다. 최종적으로 다음과 같은 코디네이션을 추천드립니다.\\n\\n차콜 그레이 울 슬림핏 정장 바지와 화이트 코튼 슬림핏 셔츠, 그리고 네이비 코튼 슬림핏 블레이저를 추천드립니다. 이 조합은 전문가들이 공통적으로 제안한 것으로, 깔끔하면서도 세련된 느낌을 연출할 수 있습니다. \\n\\n특히 차콜 그레이 울 소재와 화이트 코튼 소재의 대비가 시각적으로 좋은 효과를 줄 것 같습니다. 여기에 네이비 블레이저를 레이어링하면 격식 있는 소개팅 룩으로 더욱 적합할 것 같습니다.\\n\\n전체적으로 이 조합은 모던하고 성숙한 느낌을 연출할 수 있어 소개팅 자리에 잘 어울릴 것 같습니다.",
+                                                     "order": 1,
+                                                     "agent_id": "fitting_coordinator",
+                                                     "agent_name": "핏팅 코디네이터",
+                                                     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!"
+                                                 }
                                              }
                         """
                                     )
@@ -595,12 +572,13 @@ public class ChatController {
 //            return CommonResponse.fail("세션이 존재하지 않습니다.");
         }
         // 해당 roomId를 가지는 채팅방에서 처리가 가능한 메시지가 있는지 확인
-        List<ChatAgentResponse> agentResponses = chatQueueService.processChatQueue(roomId);
+//        List<ChatAgentResponse> agentResponses = chatQueueService.processChatQueue(roomId);
+        ChatAgentResponse agentResponse = chatQueueService.processChatQueue(roomId);
 
-        if (agentResponses == null) {
+        if (agentResponse == null) {
             return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
         }
-        return CommonResponse.success(agentResponses);
+        return CommonResponse.success(agentResponse);
     }
 
 
