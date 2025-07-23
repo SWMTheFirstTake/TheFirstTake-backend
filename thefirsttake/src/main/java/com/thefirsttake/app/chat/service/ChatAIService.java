@@ -170,7 +170,8 @@ public class ChatAIService {
     public Map<String, Object> getExpertSingleResult(String userInput, Long roomId, ChatAgentType agent) {
         try {
             Map<String, Object> requestMap = buildExpertSingleRequest(userInput, roomId, agent);
-            String fastApiUrl = "http://localhost:6020/api/expert/single";
+            // String fastApiUrl = "http://"+"localhost"+":"+llmServerPort+"/api/expert/single";
+            String fastApiUrl = "http://"+llmServerHost+":"+llmServerPort+"/api/expert/single";
 
             ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
             ApiResponse body = response.getBody();
