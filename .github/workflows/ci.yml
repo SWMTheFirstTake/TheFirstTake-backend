@@ -103,11 +103,14 @@ jobs:
             JAR_FILENAME=$(basename "$JAR_NAME")
             echo "JAR filename: $JAR_FILENAME"
             
-            # 기존 서비스가 있다면 중지합니다.
+                        # 기존 서비스가 있다면 중지합니다.
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
             sudo systemctl stop thefirsttake.service || true
-
-            # systemd 서비스 파일을 생성하거나 업데이트합니다.
+            
+            # 기존 서비스 파일을 완전히 삭제하고 새로 생성합니다.
+            sudo rm -f /etc/systemd/system/thefirsttake.service
+            
+            # systemd 서비스 파일을 새로 생성합니다.
             echo '[Unit]' | sudo tee /etc/systemd/system/thefirsttake.service
             echo 'Description=TheFirstTake Spring Boot Application' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'After=network.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
@@ -156,6 +159,11 @@ jobs:
             # 'enable'은 시스템 부팅 시 서비스가 자동으로 시작되도록 설정합니다.
             # 'start'는 서비스를 즉시 시작합니다.
             sudo systemctl enable thefirsttake.service
+            
+            # 서비스 시작 전에 생성된 서비스 파일 내용을 확인합니다.
+            echo "=== Generated Service File Content ==="
+            sudo cat /etc/systemd/system/thefirsttake.service
+            
             sudo systemctl start thefirsttake.service
             
             # 서비스 상태를 확인하여 성공적으로 시작되었는지 확인합니다.
