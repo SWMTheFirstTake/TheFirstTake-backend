@@ -89,8 +89,8 @@ jobs:
           key: ${{ env.SERVER_SSH_KEY }}
           script: |
             # 애플리케이션 JAR 파일의 이름을 찾습니다.
-            # 이 스크립트는 /home/${{ env.SERVER_USER }}/app/ 디렉토리에 JAR 파일이 하나만 있다고 가정합니다.
-            JAR_NAME=$(ls /home/${{ env.SERVER_USER }}/app/deploy/*.jar | head -n 1)
+            # -plain.jar 파일을 제외하고 실행 가능한 JAR 파일을 찾습니다.
+            JAR_NAME=$(ls /home/${{ env.SERVER_USER }}/app/deploy/*.jar | grep -v "plain.jar" | head -n 1)
             echo "Found JAR file: $JAR_NAME"
             
             # JAR 파일이 존재하는지 확인
@@ -102,6 +102,10 @@ jobs:
             # JAR 파일명만 추출 (경로 제거)
             JAR_FILENAME=$(basename "$JAR_NAME")
             echo "JAR filename: $JAR_FILENAME"
+            
+            # 디렉토리의 모든 JAR 파일 목록을 확인합니다.
+            echo "=== All JAR files in deploy directory ==="
+            ls -la /home/${{ env.SERVER_USER }}/app/deploy/*.jar
             
                         # 기존 서비스가 있다면 중지합니다.
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
