@@ -91,6 +91,13 @@ jobs:
             # 애플리케이션 JAR 파일의 이름을 찾습니다.
             # 이 스크립트는 /home/${{ env.SERVER_USER }}/app/ 디렉토리에 JAR 파일이 하나만 있다고 가정합니다.
             JAR_NAME=$(ls /home/${{ env.SERVER_USER }}/app/deploy/*.jar | head -n 1)
+            echo "Found JAR file: $JAR_NAME"
+            
+            # JAR 파일이 존재하는지 확인
+            if [ ! -f "$JAR_NAME" ]; then
+                echo "Error: JAR file not found at $JAR_NAME"
+                exit 1
+            fi
             
             # 기존 서비스가 있다면 중지합니다.
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
@@ -105,7 +112,7 @@ jobs:
             echo 'Type=simple' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'User=${{ env.SERVER_USER }}' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'WorkingDirectory=/home/${{ env.SERVER_USER }}/app' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/*.jar' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'ExecStart=/usr/bin/java -jar $JAR_NAME' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Restart=always' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
@@ -151,3 +158,14 @@ jobs:
             # --no-pager 옵션은 출력이 페이지네이션되지 않도록 합니다.
             # 이 명령은 서비스가 시작될 때까지 기다릴 수 있습니다.
             sudo systemctl status thefirsttake.service --no-pager
+            
+            # 서비스 로그를 확인하여 오류 원인을 파악합니다.
+            echo "=== Service Logs ==="
+            sudo journalctl -u thefirsttake.service --no-pager -n 50
+            
+            # 서비스가 실패한 경우 상세 로그 확인
+            if ! sudo systemctl is-active --quiet thefirsttake.service; then
+                echo "=== Service Failed - Checking Detailed Logs ==="
+                sudo journalctl -u thefirsttake.service --no-pager -n 100
+                exit 1
+            fi
