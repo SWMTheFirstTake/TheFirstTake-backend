@@ -43,4 +43,10 @@ public class ChatAgentResponse {
      * 에이전트 순서 (1, 2, 3, 4)
      */
     private Integer order;
+    
+    /**
+     * 상품 이미지 URL
+     */
+    @JsonProperty("product_image_url")
+    private String productImageUrl;
 } 

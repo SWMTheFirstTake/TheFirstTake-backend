@@ -15,8 +15,11 @@ jobs:
     env:
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+      AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+      AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
@@ -53,8 +56,11 @@ jobs:
       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
       LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
       LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+      AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+      AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
@@ -90,19 +96,52 @@ jobs:
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
             sudo systemctl stop thefirsttake.service || true
 
-            # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
-            # (서비스 파일이 변경되었을 때 필요하지만, 여기서는 안전하게 항상 실행합니다.)
-            sudo systemctl daemon-reload
+            # systemd 서비스 파일을 생성하거나 업데이트합니다.
+            sudo tee /etc/systemd/system/thefirsttake.service > /dev/null <<EOF
+[Unit]
+Description=TheFirstTake Spring Boot Application
+After=network.target
 
+[Service]
+Type=simple
+User=${{ env.SERVER_USER }}
+WorkingDirectory=/home/${{ env.SERVER_USER }}/app
+ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/*.jar
+Restart=always
+RestartSec=10
+
+# 환경 변수 설정
+Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"
+Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"
+Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
+Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"
+Environment="LLM_SERVER_HOST=${{ secrets.LLM_SERVER_HOST }}"
+Environment="LLM_SERVER_PORT=${{ secrets.LLM_SERVER_PORT }}"
+Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"
+Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"
+Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"
+Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"
+Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+            # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
+            sudo systemctl daemon-reload
+            
+            # 기존 방식 (주석 처리) - 필요시 주석 해제하여 사용 가능
             # systemd 서비스를 통해 환경 변수를 설정합니다.
             # 이 환경 변수들은 thefirsttake.service 파일의 ExecStart 명령에 사용됩니다.
-            sudo systemctl set-environment SPRING_DATASOURCE_URL="jdbc:postgresql://database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com:5432/postgres?sslmode=require"
-            sudo systemctl set-environment SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
-            sudo systemctl set-environment SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
-            sudo systemctl set-environment SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
-            sudo systemctl set-environment LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
-            sudo systemctl set-environment LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
-            sudo systemctl set-environment REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
+            # sudo systemctl set-environment SPRING_DATASOURCE_URL="jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"
+            # sudo systemctl set-environment SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
+            # sudo systemctl set-environment SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+            # sudo systemctl set-environment SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
+            # sudo systemctl set-environment LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
+            # sudo systemctl set-environment LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
+            # sudo systemctl set-environment AI_SERVER_HOST="${{ secrets.AI_SERVER_HOST }}"
+            # sudo systemctl set-environment AI_SERVER_PORT="${{ secrets.AI_SERVER_PORT }}"
+            # sudo systemctl set-environment REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
             
             # 서비스를 활성화하고 시작합니다.
             # 'enable'은 시스템 부팅 시 서비스가 자동으로 시작되도록 설정합니다.

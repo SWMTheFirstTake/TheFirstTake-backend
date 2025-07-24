@@ -9,10 +9,18 @@ import com.thefirsttake.app.chat.service.ChatCurationOrchestrationService;
 import com.thefirsttake.app.chat.service.ChatRoomManagementService;
 import com.thefirsttake.app.chat.service.ChatQueueService;
 import com.thefirsttake.app.chat.service.ChatOrchestrationService;
+import com.thefirsttake.app.chat.service.ProductSearchService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import java.util.HashMap;
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -43,6 +51,7 @@ public class ChatController {
     private final ChatRoomManagementService chatRoomManagementService;
     private final ChatOrchestrationService chatOrchestrationService;
     private final S3Service s3Service;
+    private final ProductSearchService productSearchService;
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -151,96 +160,6 @@ public class ChatController {
         }
     }
 
-//    @Operation(
-//            summary = "새로운 채팅방 생성",
-//            description = "현재 세션의 사용자에 대해 항상 새로운 채팅방을 생성합니다. 기존 채팅방이 있어도 새로운 방이 생성되며, 생성된 채팅방의 ID를 반환합니다."
-//                    ,
-//            responses = {
-//                    @ApiResponse(
-//                            responseCode = "200",
-//                            description = "성공 시 새로 생성된 채팅방 ID 반환",
-//                            content = @Content(
-//                                    mediaType = "application/json",
-//                                    schema = @Schema(implementation = CommonResponse.class),
-//                                    examples = @ExampleObject(
-//                                            name = "성공 응답 예시",
-//                                            summary = "새로 생성된 채팅방 ID",
-//                                            value = """
-//                    {
-//                      "status": "success",
-//                      "message": "요청 성공",
-//                      "data": 56789
-//                    }
-//                    """
-//                                    )
-//                            )
-//                    ),
-//                    @ApiResponse(
-//                            responseCode = "400",
-//                            description = "세션 없음 또는 유효하지 않은 요청",
-//                            content = @Content(
-//                                    mediaType = "application/json",
-//                                    examples = @ExampleObject(
-//                                            name = "세션 없음 예시",
-//                                            summary = "세션이 존재하지 않는 경우",
-//                                            value = """
-//                    {
-//                      "status": "fail",
-//                      "message": "세션이 존재하지 않습니다.",
-//                      "data": null
-//                    }
-//                    """
-//                                    )
-//                            )
-//                    ),
-//                    @ApiResponse(
-//                            responseCode = "500",
-//                            description = "서버 내부 오류",
-//                            content = @Content(
-//                                    mediaType = "application/json",
-//                                    examples = @ExampleObject(
-//                                            name = "서버 오류 예시",
-//                                            summary = "예상치 못한 서버 오류 발생",
-//                                            value = """
-//                    {
-//                      "status": "fail",
-//                      "message": "채팅방 생성 중 오류가 발생했습니다: [오류 메시지]",
-//                      "data": null
-//                    }
-//                    """
-//                                    )
-//                            )
-//                    )
-//            }
-//    )
-//    @PostMapping("/rooms/new")
-//    public CommonResponse createChatRoom(HttpServletRequest httpRequest){
-//        // 해당 유저에 대해 새로운 방 생성
-//        // 1. 유저 확인/생성
-//        // 2. chatRoom테이블에 하나 더 생성. 이 때 user_id는 userEntity의 것이어야함.
-//        // 3. 생성된 새로운 채팅방의 id값 반환
-//        HttpSession session = httpRequest.getSession(true);
-//
-//        // 로그인된 유저인지 확인하는 로직(나중에 유저 로직 넣으면 개발 예정)
-//
-//        // 지금은 전부 비로그인 사용자 대상이므로, 세션 여부 확인
-//        if (session == null) {
-//            return CommonResponse.fail("세션이 존재하지 않습니다.");
-//        }
-//
-//        String sessionId = session.getId();
-//        try {
-//            // chatRoomService.createChatRoom 메서드에서 던진 예외를 여기서 잡습니다.
-//            Long newRoomId = chatRoomService.createChatRoom(sessionId);
-//            return CommonResponse.success(newRoomId); // 성공 시 생성된 roomId 반환
-//        }catch (Exception e) {
-//            // 혹시 ChatCreationException 외의 예상치 못한 다른 예외가 발생할 경우를 대비합니다.
-//            // 이 경우, 일반적인 오류 메시지를 반환하거나, e.getMessage()를 포함할 수 있습니다.
-//            // log.error("예상치 못한 오류 발생", e); // 실제 사용 시에는 로그를 남기는 것이 좋습니다.
-//            return CommonResponse.fail("채팅방 생성 중 알 수 없는 오류가 발생했습니다.");
-//        }
-//    }
-
     @Operation(
             summary = "채팅 메시지 전송",
             description = "사용자의 채팅 메시지를 받아 데이터베이스에 저장하고, AI 응답 처리를 위해 Redis 워커 큐에 전송합니다. 저장된 메시지의 ID를 반환합니다.",
@@ -348,9 +267,9 @@ public class ChatController {
 //            return CommonResponse.fail("세션이 존재하지 않습니다.");
         }
         String sessionId = session.getId();
-        System.out.println(sessionId);
-        System.out.println(chatMessageRequest.getContent());
-        System.out.println(chatMessageRequest.getImageUrl());
+        // System.out.println(sessionId);
+        // System.out.println(chatMessageRequest.getContent());
+        // System.out.println(chatMessageRequest.getImageUrl());
         try {
             // 새롭게 분리된 서비스 메서드를 호출
             Long resultRoomId = chatOrchestrationService.handleChatMessageSend(roomId, chatMessageRequest, sessionId);
@@ -501,7 +420,8 @@ public class ChatController {
                                                      "order": 1,
                                                      "agent_id": "fitting_coordinator",
                                                      "agent_name": "핏팅 코디네이터",
-                                                     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!"
+                                                     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
+                                                     "product_image_url": "https://example.com/product-image.jpg"
                                                  }
                                              }
                         """
@@ -574,10 +494,25 @@ public class ChatController {
         // 해당 roomId를 가지는 채팅방에서 처리가 가능한 메시지가 있는지 확인
 //        List<ChatAgentResponse> agentResponses = chatQueueService.processChatQueue(roomId);
         ChatAgentResponse agentResponse = chatQueueService.processChatQueue(roomId);
-
+        
         if (agentResponse == null) {
             return CommonResponse.fail("응답이 아직 없습니다."); // 또는 return ResponseEntity.noContent().build();
         }
+        
+        // 에이전트 응답 메시지 출력
+        System.out.println("에이전트 응답 메시지: " + agentResponse.getMessage());
+        
+        // 상품 검색 API 호출
+        Map<String, Object> searchResult = productSearchService.searchProducts(agentResponse.getMessage());
+        System.out.println("상품 검색 결과: " + searchResult);
+        
+        // 상품 이미지 URL 추출 및 설정
+        String productImageUrl = productSearchService.extractProductImageUrl(searchResult);
+        if (productImageUrl != null) {
+            agentResponse.setProductImageUrl(productImageUrl);
+            System.out.println("상품 이미지 URL 설정: " + productImageUrl);
+        }
+        
         return CommonResponse.success(agentResponse);
     }
 
