@@ -99,6 +99,10 @@ jobs:
                 exit 1
             fi
             
+            # JAR 파일명만 추출 (경로 제거)
+            JAR_FILENAME=$(basename "$JAR_NAME")
+            echo "JAR filename: $JAR_FILENAME"
+            
             # 기존 서비스가 있다면 중지합니다.
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
             sudo systemctl stop thefirsttake.service || true
@@ -112,7 +116,7 @@ jobs:
             echo 'Type=simple' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'User=${{ env.SERVER_USER }}' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'WorkingDirectory=/home/${{ env.SERVER_USER }}/app' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'ExecStart=/usr/bin/java -jar $JAR_NAME' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo "ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/$JAR_FILENAME" | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Restart=always' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
@@ -167,5 +171,7 @@ jobs:
             if ! sudo systemctl is-active --quiet thefirsttake.service; then
                 echo "=== Service Failed - Checking Detailed Logs ==="
                 sudo journalctl -u thefirsttake.service --no-pager -n 100
+                echo "=== Generated Service File ==="
+                sudo cat /etc/systemd/system/thefirsttake.service
                 exit 1
             fi
