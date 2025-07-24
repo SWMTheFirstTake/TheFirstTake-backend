@@ -97,35 +97,33 @@ jobs:
             sudo systemctl stop thefirsttake.service || true
 
             # systemd 서비스 파일을 생성하거나 업데이트합니다.
-            sudo bash -c 'cat > /etc/systemd/system/thefirsttake.service << EOF
-[Unit]
-Description=TheFirstTake Spring Boot Application
-After=network.target
-
-[Service]
-Type=simple
-User=${{ env.SERVER_USER }}
-WorkingDirectory=/home/${{ env.SERVER_USER }}/app
-ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/*.jar
-Restart=always
-RestartSec=10
-
-# 환경 변수 설정
-Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"
-Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"
-Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"
-Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"
-Environment="LLM_SERVER_HOST=${{ secrets.LLM_SERVER_HOST }}"
-Environment="LLM_SERVER_PORT=${{ secrets.LLM_SERVER_PORT }}"
-Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"
-Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"
-Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"
-Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"
-Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"
-
-[Install]
-WantedBy=multi-user.target
-EOF'
+            echo '[Unit]' | sudo tee /etc/systemd/system/thefirsttake.service
+            echo 'Description=TheFirstTake Spring Boot Application' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'After=network.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '[Service]' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Type=simple' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'User=${{ env.SERVER_USER }}' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'WorkingDirectory=/home/${{ env.SERVER_USER }}/app' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/*.jar' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Restart=always' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '# 환경 변수 설정' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="LLM_SERVER_HOST=${{ secrets.LLM_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="LLM_SERVER_PORT=${{ secrets.LLM_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
 
             # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
             sudo systemctl daemon-reload
