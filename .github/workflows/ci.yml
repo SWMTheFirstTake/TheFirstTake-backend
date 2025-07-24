@@ -97,7 +97,7 @@ jobs:
             sudo systemctl stop thefirsttake.service || true
 
             # systemd 서비스 파일을 생성하거나 업데이트합니다.
-            sudo tee /etc/systemd/system/thefirsttake.service > /dev/null <<EOF
+            cat > /tmp/thefirsttake.service << 'EOF'
 [Unit]
 Description=TheFirstTake Spring Boot Application
 After=network.target
@@ -126,6 +126,7 @@ Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"
 [Install]
 WantedBy=multi-user.target
 EOF
+            sudo mv /tmp/thefirsttake.service /etc/systemd/system/thefirsttake.service
 
             # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
             sudo systemctl daemon-reload
