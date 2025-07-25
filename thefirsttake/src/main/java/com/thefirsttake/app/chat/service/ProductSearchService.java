@@ -59,13 +59,14 @@ public class ProductSearchService {
             
             // 응답 처리
             Map<String, Object> responseBody = response.getBody();
-            if (responseBody != null) {
-                log.info("상품 검색 API 응답 성공: {}", responseBody);
-                return responseBody;
-            } else {
-                log.warn("상품 검색 API 응답이 null입니다.");
-                return createErrorResponse("API 응답이 null입니다.");
-            }
+            return responseBody;
+            // if (responseBody != null) {
+            //     log.info("상품 검색 API 응답 성공: {}", responseBody);
+            //     return responseBody;
+            // } else {
+            //     log.warn("상품 검색 API 응답이 null입니다.");
+            //     return createErrorResponse("API 응답이 null입니다.");
+            // }
             
         } catch (Exception e) {
             log.error("상품 검색 API 호출 실패: {}", e.getMessage(), e);

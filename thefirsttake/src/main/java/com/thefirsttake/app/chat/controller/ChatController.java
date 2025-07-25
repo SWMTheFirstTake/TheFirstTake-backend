@@ -504,6 +504,9 @@ public class ChatController {
         
         // 상품 검색 API 호출
         Map<String, Object> searchResult = productSearchService.searchProducts(agentResponse.getMessage());
+        if(searchResult == null){
+            return CommonResponse.fail("상품 검색 결과가 없습니다.");
+        }
         System.out.println("상품 검색 결과: " + searchResult);
         
         // 상품 이미지 URL 추출 및 설정
