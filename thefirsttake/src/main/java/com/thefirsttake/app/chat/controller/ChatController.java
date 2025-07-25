@@ -162,7 +162,7 @@ public class ChatController {
 
     @Operation(
             summary = "채팅 메시지 전송",
-            description = "사용자의 채팅 메시지를 받아 데이터베이스에 저장하고, AI 응답 처리를 위해 Redis 워커 큐에 전송합니다. 저장된 메시지의 ID를 반환합니다.",
+            description = "사용자의 채팅 메시지를 받아 데이터베이스에 저장하고, AI 응답 처리를 위해 Redis 워커 큐에 전송합니다. 이미지 URL이 포함된 경우 함께 처리됩니다. 저장된 메시지의 ID를 반환합니다.",
             parameters = {
                     @Parameter(
                             name = "roomId",
@@ -174,14 +174,17 @@ public class ChatController {
                     required = true,
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = ChatMessageRequest.class),
+                            schema = @Schema(
+                                    implementation = ChatMessageRequest.class,
+                                    description = "content: 필수, image_url: 선택적 (S3 이미지 URL)"
+                            ),
                             examples = @ExampleObject(
                                     name = "채팅 메시지 요청 예시",
                                     summary = "사용자가 보낸 채팅 메시지 내용",
                                     value = """
                     {
                       "content": "내일 소개팅 가는데 입을 옷 추천해줘",
-                      "imageUrl": "https://thefirsttake-file-upload.s3.ap-northeast-2.amazonaws.com/AA12CAC8A9A04D381E787DEF432ED8FC_fsttest.png"
+                      "image_url": "https://thefirsttake-file-upload.s3.ap-northeast-2.amazonaws.com/AA12CAC8A9A04D381E787DEF432ED8FC_fsttest.png"
                     }
                     """
                             )

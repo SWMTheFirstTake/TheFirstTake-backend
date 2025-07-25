@@ -8,6 +8,6 @@ import lombok.Setter;
 @Setter
 public class ChatMessageRequest {
     private String content;
-    @JsonProperty("imageUrl")  // JSON 필드명 명시
+    @JsonProperty("image_url")  // snake_case로 변경
     private String imageUrl;
 }

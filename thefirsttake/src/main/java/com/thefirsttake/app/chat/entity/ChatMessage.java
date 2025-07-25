@@ -41,6 +41,9 @@ public class ChatMessage {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    // @Column(name = "image_url", nullable = true, columnDefinition = "TEXT")
+    // private String imageUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
