@@ -557,39 +557,39 @@ public class ChatController {
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
                                             summary = "채팅 메시지 목록과 페이징 정보",
-                                            value = """
-                            {
-                              "status": "success",
-                              "message": "채팅 메시지 목록을 성공적으로 조회했습니다.",
-                              "data": {
-                                "messages": [
-                                  {
-                                    "id": 1,
-                                    "content": "내일 소개팅 가는데 입을 옷 추천해줘",
-                                    "imageUrl": null,
-                                    "messageType": "USER",
-                                    "createdAt": "2024-01-15T09:30:00Z",
-                                    "agentType": null,
-                                    "agentName": null,
-                                    "productImageUrl": null
-                                  },
-                                                                     {
-                                     "id": 2,
-                                     "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
-                                     "imageUrl": null,
-                                     "messageType": "STYLE",
-                                     "createdAt": "2024-01-15T09:35:00Z",
-                                     "agentType": "STYLE",
-                                     "agentName": "스타일 분석가",
-                                     "productImageUrl": "https://example.com/product.jpg"
-                                   }
-                                ],
-                                "hasMore": true,
-                                "nextCursor": "2024-01-15T09:30:00Z",
-                                "count": 2
-                              }
-                            }
-                            """
+                                                                                         value = """
+                             {
+                               "status": "success",
+                               "message": "채팅 메시지 목록을 성공적으로 조회했습니다.",
+                               "data": {
+                                 "messages": [
+                                   {
+                                     "id": 1,
+                                     "content": "내일 소개팅 가는데 입을 옷 추천해줘",
+                                     "image_url": null,
+                                     "message_type": "USER",
+                                     "created_at": "2024-01-15T09:30:00Z",
+                                     "agent_type": null,
+                                     "agent_name": null,
+                                     "product_image_url": null
+                                   },
+                                                                      {
+                                      "id": 2,
+                                      "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
+                                      "image_url": null,
+                                      "message_type": "STYLE",
+                                      "created_at": "2024-01-15T09:35:00Z",
+                                      "agent_type": "STYLE",
+                                      "agent_name": "스타일 분석가",
+                                      "product_image_url": "https://example.com/product.jpg"
+                                    }
+                                 ],
+                                 "has_more": true,
+                                 "next_cursor": "2024-01-15T09:30:00Z",
+                                 "count": 2
+                               }
+                             }
+                             """
                                     )
                             )
                     ),
