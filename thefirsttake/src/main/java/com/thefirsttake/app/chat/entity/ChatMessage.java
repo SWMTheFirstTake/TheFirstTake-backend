@@ -41,8 +41,23 @@ public class ChatMessage {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
-    // @Column(name = "image_url", nullable = true, columnDefinition = "TEXT")
-    // private String imageUrl;
+    /**
+     * 사용자가 채팅할 때 업로드한 이미지 URL
+     * - 사용자가 "이 옷 어때?"라고 하면서 자신이 입은 옷 사진을 업로드
+     * - 사용자가 "이 스타일로 추천해줘"라고 하면서 참고할 스타일 이미지 업로드
+     * - 발신자: 사용자 (USER)
+     */
+    @Column(name = "image_url", nullable = true, columnDefinition = "TEXT")
+    private String imageUrl;
+
+    /**
+     * AI가 추천한 상품의 이미지 URL
+     * - AI가 "이 상품을 추천드립니다"라고 하면서 추천 상품의 이미지
+     * - 상품 검색 API에서 반환된 상품 이미지
+     * - 발신자: AI 에이전트 (STYLE, TREND, COLOR, FITTING)
+     */
+    @Column(name = "product_image_url", nullable = true, columnDefinition = "TEXT")
+    private String productImageUrl;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

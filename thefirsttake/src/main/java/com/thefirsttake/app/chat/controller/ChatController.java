@@ -2,10 +2,12 @@ package com.thefirsttake.app.chat.controller;
 
 import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import com.thefirsttake.app.chat.dto.response.ChatAgentResponse;
+import com.thefirsttake.app.chat.dto.response.ChatMessageListResponse;
 import com.thefirsttake.app.chat.dto.response.ChatRoomDto;
 import com.thefirsttake.app.chat.dto.response.ChatSessionHistoryResponse;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.service.ChatCurationOrchestrationService;
+import com.thefirsttake.app.chat.service.ChatMessageService;
 import com.thefirsttake.app.chat.service.ChatRoomManagementService;
 import com.thefirsttake.app.chat.service.ChatQueueService;
 import com.thefirsttake.app.chat.service.ChatOrchestrationService;
@@ -36,6 +38,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +53,7 @@ public class ChatController {
     private final UserSessionService userSessionService;
     private final ChatRoomManagementService chatRoomManagementService;
     private final ChatOrchestrationService chatOrchestrationService;
+    private final ChatMessageService chatMessageService;
     private final S3Service s3Service;
     private final ProductSearchService productSearchService;
     @Operation(
@@ -522,6 +526,170 @@ public class ChatController {
         return CommonResponse.success(agentResponse);
     }
 
-
+    @Operation(
+            summary = "채팅방 메시지 목록 조회 (무한 스크롤)",
+            description = "특정 채팅방의 메시지들을 무한 스크롤 형태로 조회합니다. before 파라미터를 사용하여 이전 메시지들을 페이지네이션으로 가져옵니다.",
+            parameters = {
+                    @Parameter(
+                            name = "roomId",
+                            description = "메시지를 조회할 채팅방의 ID",
+                            required = true,
+                            schema = @Schema(type = "integer", format = "int64")
+                    ),
+                                         @Parameter(
+                             name = "limit",
+                             description = "한 번에 가져올 메시지 개수 (기본값: 5, 최대: 50)",
+                             schema = @Schema(type = "integer", example = "5")
+                     ),
+                    @Parameter(
+                            name = "before",
+                            description = "이 시간 이전의 메시지들을 조회 (ISO 8601 형식)",
+                            schema = @Schema(type = "string", format = "date-time", example = "2024-01-15T10:00:00Z")
+                    )
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "채팅 메시지 목록 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = CommonResponse.class),
+                                    examples = @ExampleObject(
+                                            name = "성공 응답 예시",
+                                            summary = "채팅 메시지 목록과 페이징 정보",
+                                            value = """
+                            {
+                              "status": "success",
+                              "message": "채팅 메시지 목록을 성공적으로 조회했습니다.",
+                              "data": {
+                                "messages": [
+                                  {
+                                    "id": 1,
+                                    "content": "내일 소개팅 가는데 입을 옷 추천해줘",
+                                    "imageUrl": null,
+                                    "messageType": "USER",
+                                    "createdAt": "2024-01-15T09:30:00Z",
+                                    "agentType": null,
+                                    "agentName": null,
+                                    "productImageUrl": null
+                                  },
+                                                                     {
+                                     "id": 2,
+                                     "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
+                                     "imageUrl": null,
+                                     "messageType": "STYLE",
+                                     "createdAt": "2024-01-15T09:35:00Z",
+                                     "agentType": "STYLE",
+                                     "agentName": "스타일 분석가",
+                                     "productImageUrl": "https://example.com/product.jpg"
+                                   }
+                                ],
+                                "hasMore": true,
+                                "nextCursor": "2024-01-15T09:30:00Z",
+                                "count": 2
+                              }
+                            }
+                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "유효하지 않은 요청 데이터",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "잘못된 요청 예시",
+                                            summary = "roomId가 누락되거나 유효하지 않은 경우",
+                                            value = """
+                            {
+                              "status": "fail",
+                              "message": "잘못된 요청입니다. roomId를 확인해주세요.",
+                              "data": null
+                            }
+                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "채팅방을 찾을 수 없음",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "채팅방 없음 예시",
+                                            summary = "존재하지 않는 채팅방 ID",
+                                            value = """
+                            {
+                              "status": "fail",
+                              "message": "채팅방을 찾을 수 없습니다.",
+                              "data": null
+                            }
+                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "서버 내부 오류",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "서버 오류 예시",
+                                            summary = "예상치 못한 서버 오류 발생",
+                                            value = """
+                            {
+                              "status": "fail",
+                              "message": "메시지 목록 조회 중 오류가 발생했습니다: [오류 메시지]",
+                              "data": null
+                            }
+                            """
+                                    )
+                            )
+                    )
+            }
+    )
+    @GetMapping("/rooms/{roomId}/messages")
+    public CommonResponse getChatMessages(
+            @PathVariable("roomId") Long roomId,
+            @RequestParam(value = "limit", required = false, defaultValue = "5") Integer limit,
+            @RequestParam(value = "before", required = false) String beforeStr,
+            HttpServletRequest httpRequest) {
+        
+        try {
+            // 세션 확인 (다른 API들과 동일하게 세션 자동 생성)
+            HttpSession session = httpRequest.getSession(false);
+            if (session == null) {
+                System.out.println("messages: 세션 새로 생성");
+                session = httpRequest.getSession(true);
+            }
+            
+            // 채팅방 존재 여부 확인
+            try {
+                chatRoomManagementService.getRoomById(roomId);
+            } catch (EntityNotFoundException e) {
+                return CommonResponse.fail("채팅방을 찾을 수 없습니다.");
+            }
+            
+            // before 파라미터 파싱
+            LocalDateTime before = null;
+            if (beforeStr != null && !beforeStr.trim().isEmpty()) {
+                try {
+                    before = LocalDateTime.parse(beforeStr.replace("Z", ""));
+                } catch (Exception e) {
+                    return CommonResponse.fail("잘못된 날짜 형식입니다. ISO 8601 형식을 사용해주세요.");
+                }
+            }
+            
+            // 메시지 목록 조회
+            ChatMessageListResponse response = chatMessageService.getChatMessagesWithPagination(roomId, limit, before);
+            
+            return CommonResponse.success(response);
+            
+        } catch (Exception e) {
+            log.error("채팅 메시지 목록 조회 중 오류 발생: {}", e.getMessage(), e);
+            return CommonResponse.fail("메시지 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
 }
 

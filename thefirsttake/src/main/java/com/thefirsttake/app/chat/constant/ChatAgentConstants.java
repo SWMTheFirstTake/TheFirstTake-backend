@@ -40,6 +40,16 @@ public class ChatAgentConstants {
     );
     
     /**
+     * DB 저장용 에이전트 ID를 에이전트 이름으로 변환하는 매핑
+     */
+    public static final Map<String, String> AGENT_NAME_MAPPING = Map.of(
+            "STYLE", "스타일 분석가",
+            "TREND", "트렌드 전문가", 
+            "COLOR", "컬러 전문가",
+            "FITTING", "핏팅 코디네이터"
+    );
+    
+    /**
      * 에이전트 정보 내부 클래스
      */
     public static class AgentInfo {
