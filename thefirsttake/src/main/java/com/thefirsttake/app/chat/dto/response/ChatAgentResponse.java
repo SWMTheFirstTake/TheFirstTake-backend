@@ -45,8 +45,8 @@ public class ChatAgentResponse {
     private Integer order;
     
     /**
-     * 상품 이미지 URL
+     * 상품 이미지 URL 리스트
      */
     @JsonProperty("product_image_url")
-    private String productImageUrl;
+    private java.util.List<String> productImageUrl;
 } 

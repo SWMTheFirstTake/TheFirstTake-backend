@@ -67,7 +67,7 @@ public class ChatMessageListResponse {
         private String agentName;
         
         @JsonProperty("product_image_url")
-        @Schema(description = "상품 이미지 URL (AI 메시지인 경우)")
-        private String productImageUrl;
+        @Schema(description = "상품 이미지 URL 리스트 (AI 메시지인 경우)")
+        private java.util.List<String> productImageUrl;
     }
 } 

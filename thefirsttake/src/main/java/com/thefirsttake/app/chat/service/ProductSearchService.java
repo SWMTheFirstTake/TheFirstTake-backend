@@ -75,68 +75,57 @@ public class ProductSearchService {
     }
     
     /**
-     * 상품 검색 결과에서 이미지 URL 추출
+     * 상품 검색 결과에서 모든 이미지 URL 추출
+     * 새로운 응답 형식: {"success": true, "data": {"data": [{"image_url": "..."}, ...]}}
      * @param searchResult 상품 검색 결과
-     * @return 이미지 URL (없으면 null)
+     * @return 이미지 URL 리스트 (없으면 빈 리스트)
      */
-    public String extractProductImageUrl(Map<String, Object> searchResult) {
+    public java.util.List<String> extractProductImageUrls(Map<String, Object> searchResult) {
+        java.util.List<String> imageUrls = new java.util.ArrayList<>();
+        
         try {
             if (searchResult == null || !(Boolean) searchResult.getOrDefault("success", false)) {
                 log.warn("상품 검색 결과가 유효하지 않습니다.");
-                return null;
+                return imageUrls;
             }
             
-            // data 필드에서 이미지 URL 추출 시도
+            // data.data 배열에서 모든 항목의 image_url 추출
             Object data = searchResult.get("data");
             if (data instanceof Map) {
                 Map<String, Object> dataMap = (Map<String, Object>) data;
+                Object dataArray = dataMap.get("data");
                 
-                // 다양한 가능한 필드명으로 이미지 URL 찾기
-                String imageUrl = findImageUrlInMap(dataMap);
-                if (imageUrl != null) {
-                    log.info("상품 이미지 URL 추출 성공: {}", imageUrl);
-                    return imageUrl;
+                if (dataArray instanceof java.util.List) {
+                    java.util.List<?> list = (java.util.List<?>) dataArray;
+                    
+                    for (Object item : list) {
+                        if (item instanceof Map) {
+                            Map<String, Object> itemMap = (Map<String, Object>) item;
+                            String imageUrl = (String) itemMap.get("image_url");
+                            
+                            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                                imageUrls.add(imageUrl);
+                            }
+                        }
+                    }
                 }
             }
             
-            log.warn("상품 이미지 URL을 찾을 수 없습니다.");
-            return null;
+            if (!imageUrls.isEmpty()) {
+                log.info("상품 이미지 URL {}개 추출 성공: {}", imageUrls.size(), imageUrls);
+            } else {
+                log.warn("상품 이미지 URL을 찾을 수 없습니다.");
+            }
+            
+            return imageUrls;
             
         } catch (Exception e) {
             log.error("상품 이미지 URL 추출 중 오류: {}", e.getMessage(), e);
-            return null;
+            return imageUrls;
         }
     }
     
-    /**
-     * Map에서 이미지 URL 찾기
-     */
-    private String findImageUrlInMap(Map<String, Object> dataMap) {
-        // 가능한 이미지 URL 필드명들
-        String[] possibleImageFields = {
-            "image_url", "imageUrl", "product_image", "productImage", 
-            "image", "url", "thumbnail", "photo", "picture"
-        };
-        
-        for (String field : possibleImageFields) {
-            Object value = dataMap.get(field);
-            if (value instanceof String && !((String) value).trim().isEmpty()) {
-                return (String) value;
-            }
-        }
-        
-        // 중첩된 객체에서도 찾기
-        for (Object value : dataMap.values()) {
-            if (value instanceof Map) {
-                String nestedUrl = findImageUrlInMap((Map<String, Object>) value);
-                if (nestedUrl != null) {
-                    return nestedUrl;
-                }
-            }
-        }
-        
-        return null;
-    }
+
     
     /**
      * 오류 응답 생성

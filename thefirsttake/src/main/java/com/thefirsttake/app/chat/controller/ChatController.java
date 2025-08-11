@@ -418,20 +418,23 @@ public class ChatController {
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
                                             summary = "Redis에서 가져온 핏팅 코디네이터 최종 추천",
-                                            value = """
-                                            {
-                                                 "status": "success",
-                                                 "message": "요청 성공",
-                                                 "data": {
-                                                     "message": "전문가들의 다양한 의견을 종합해 보았습니다. 최종적으로 다음과 같은 코디네이션을 추천드립니다.\\n\\n차콜 그레이 울 슬림핏 정장 바지와 화이트 코튼 슬림핏 셔츠, 그리고 네이비 코튼 슬림핏 블레이저를 추천드립니다. 이 조합은 전문가들이 공통적으로 제안한 것으로, 깔끔하면서도 세련된 느낌을 연출할 수 있습니다. \\n\\n특히 차콜 그레이 울 소재와 화이트 코튼 소재의 대비가 시각적으로 좋은 효과를 줄 것 같습니다. 여기에 네이비 블레이저를 레이어링하면 격식 있는 소개팅 룩으로 더욱 적합할 것 같습니다.\\n\\n전체적으로 이 조합은 모던하고 성숙한 느낌을 연출할 수 있어 소개팅 자리에 잘 어울릴 것 같습니다.",
-                                                     "order": 1,
-                                                     "agent_id": "fitting_coordinator",
-                                                     "agent_name": "핏팅 코디네이터",
-                                                     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
-                                                     "product_image_url": "https://example.com/product-image.jpg"
-                                                 }
-                                             }
-                        """
+                                                                                         value = """
+                                             {
+                                                  "status": "success",
+                                                  "message": "요청 성공",
+                                                  "data": {
+                                                      "message": "전문가들의 다양한 의견을 종합해 보았습니다. 최종적으로 다음과 같은 코디네이션을 추천드립니다.\\n\\n차콜 그레이 울 슬림핏 정장 바지와 화이트 코튼 슬림핏 셔츠, 그리고 네이비 코튼 슬림핏 블레이저를 추천드립니다. 이 조합은 전문가들이 공통적으로 제안한 것으로, 깔끔하면서도 세련된 느낌을 연출할 수 있습니다. \\n\\n특히 차콜 그레이 울 소재와 화이트 코튼 소재의 대비가 시각적으로 좋은 효과를 줄 것 같습니다. 여기에 네이비 블레이저를 레이어링하면 격식 있는 소개팅 룩으로 더욱 적합할 것 같습니다.\\n\\n전체적으로 이 조합은 모던하고 성숙한 느낌을 연출할 수 있어 소개팅 자리에 잘 어울릴 것 같습니다.",
+                                                      "order": 1,
+                                                      "agent_id": "fitting_coordinator",
+                                                      "agent_name": "핏팅 코디네이터",
+                                                      "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
+                                                      "product_image_url": [
+                                                          "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+                                                          "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+                                                      ]
+                                                  }
+                                              }
+                         """
                                     )
                             )
                     ),
@@ -517,10 +520,21 @@ public class ChatController {
         System.out.println("상품 검색 결과: " + searchResult);
         
         // 상품 이미지 URL 추출 및 설정
-        String productImageUrl = productSearchService.extractProductImageUrl(searchResult);
-        if (productImageUrl != null) {
-            agentResponse.setProductImageUrl(productImageUrl);
-            System.out.println("상품 이미지 URL 설정: " + productImageUrl);
+        java.util.List<String> productImageUrls = productSearchService.extractProductImageUrls(searchResult);
+        if (!productImageUrls.isEmpty()) {
+            agentResponse.setProductImageUrl(productImageUrls);
+        //     System.out.println("상품 이미지 URL {}개 설정: {}", productImageUrls.size(), productImageUrls);
+            
+            // 상품 이미지가 포함된 응답을 데이터베이스에 저장
+            try {
+                UserEntity userEntity = chatRoomManagementService.getUserEntityByRoomId(roomId);
+                ChatRoom chatRoom = chatRoomManagementService.getRoomById(roomId);
+                chatMessageService.saveAIResponse(userEntity, chatRoom, agentResponse);
+                System.out.println("상품 이미지가 포함된 AI 응답을 데이터베이스에 저장했습니다.");
+            } catch (Exception e) {
+                System.err.println("상품 이미지가 포함된 AI 응답 저장 실패: " + e.getMessage());
+                // 저장 실패해도 응답은 반환
+            }
         }
         
         return CommonResponse.success(agentResponse);
@@ -573,16 +587,19 @@ public class ChatController {
                                      "agent_name": null,
                                      "product_image_url": null
                                    },
-                                                                      {
-                                      "id": 2,
-                                      "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
-                                      "image_url": null,
-                                      "message_type": "STYLE",
-                                      "created_at": "2024-01-15T09:35:00Z",
-                                      "agent_type": "STYLE",
-                                      "agent_name": "스타일 분석가",
-                                      "product_image_url": "https://example.com/product.jpg"
-                                    }
+                                                                                                           {
+                                       "id": 2,
+                                       "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
+                                       "image_url": null,
+                                       "message_type": "STYLE",
+                                       "created_at": "2024-01-15T09:35:00Z",
+                                       "agent_type": "STYLE",
+                                       "agent_name": "스타일 분석가",
+                                       "product_image_url": [
+                                           "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+                                           "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+                                       ]
+                                     }
                                  ],
                                  "has_more": true,
                                  "next_cursor": "2024-01-15T09:30:00Z",

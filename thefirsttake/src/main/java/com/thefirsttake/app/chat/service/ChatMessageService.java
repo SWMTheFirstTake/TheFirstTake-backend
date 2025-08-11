@@ -154,15 +154,31 @@ public class ChatMessageService {
                 agentResponse.getAgentId()
         );
 
+        // 1. AI 응답 메시지 저장
         ChatMessage responseMessage = ChatMessage.builder()
                 .user(user)
                 .chatRoom(chatRoom)
                 .senderType(dbAgentId)
                 .message(agentResponse.getMessage())
-                .productImageUrl(agentResponse.getProductImageUrl())  // AI가 추천한 상품 이미지
+                .productImageUrl(null)  // AI 응답 메시지에는 상품 이미지 없음
                 .build();
 
         chatMessageRepository.save(responseMessage);
+
+        // 2. 각 상품 이미지를 개별 메시지로 저장
+        if (agentResponse.getProductImageUrl() != null && !agentResponse.getProductImageUrl().isEmpty()) {
+            for (String productImageUrl : agentResponse.getProductImageUrl()) {
+                ChatMessage productMessage = ChatMessage.builder()
+                        .user(user)
+                        .chatRoom(chatRoom)
+                        .senderType(dbAgentId + "_PRODUCT")  // 상품 이미지 메시지 구분
+                        .message("추천 상품 이미지")
+                        .productImageUrl(productImageUrl)  // 개별 상품 이미지 URL
+                        .build();
+
+                chatMessageRepository.save(productMessage);
+            }
+        }
     }
 
     /**
@@ -243,6 +259,12 @@ public class ChatMessageService {
      * - productImageUrl: AI가 추천한 상품 이미지 (AI 에이전트 메시지에만 존재)
      */
     private ChatMessageListResponse.ChatMessageDto convertToDto(ChatMessage message) {
+        // 상품 이미지 메시지인 경우 개별 URL을 리스트로 변환
+        java.util.List<String> productImageUrlList = null;
+        if (message.getSenderType().endsWith("_PRODUCT") && message.getProductImageUrl() != null) {
+            productImageUrlList = java.util.List.of(message.getProductImageUrl());
+        }
+        
         return ChatMessageListResponse.ChatMessageDto.builder()
                 .id(message.getId())
                 .content(message.getMessage())
@@ -252,7 +274,7 @@ public class ChatMessageService {
                 .agentType(message.getSenderType().equals("USER") ? null : message.getSenderType())
                 .agentName(message.getSenderType().equals("USER") ? null : 
                         ChatAgentConstants.AGENT_NAME_MAPPING.getOrDefault(message.getSenderType(), message.getSenderType()))
-                .productImageUrl(message.getProductImageUrl())  // AI 추천 상품 이미지
+                .productImageUrl(productImageUrlList)  // AI 추천 상품 이미지
                 .build();
     }
 }
