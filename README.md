@@ -52,7 +52,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
                        └──────────────────┘
 ```
 
-## �� 주요 기능
+## 🚀 주요 기능
 
 ### 💬 AI 기반 채팅 인터페이스
 - **LLM 기반 질의응답**: 자연어로 패션 상담 및 스타일 추천
@@ -66,7 +66,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 🎨 패션 큐레이션 & 추천
 - **RAG 기반 지식 검색**: 패션 지식베이스를 활용한 정확한 추천
 - **상황별 맞춤 추천**: 소개팅, 면접, 데이트 등 상황별 최적 스타일
-- **상품 연동**: 추천 스타일에 맞는 실제 상품 이미지 제공
+- **상품 연동**: 추천 스타일에 맞는 실제 상품 이미지 제공 (다중 이미지 지원)
 - **개인화 분석**: 사용자 체형, 피부톤, 선호도 기반 맞춤 추천
 
 ### 📸 이미지 처리
@@ -78,6 +78,11 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - **세션 기반 인증**: 안전한 사용자 세션 관리
 - **채팅방 관리**: 개인별 채팅방 생성 및 히스토리 관리
 - **사용자 로그**: 상세한 사용자 활동 로그 및 분석
+
+### 📱 메시지 관리
+- **무한 스크롤**: 페이지네이션을 통한 효율적인 메시지 조회
+- **메시지 히스토리**: 사용자 업로드 이미지와 AI 추천 상품 이미지 분리 저장
+- **실시간 업데이트**: 상품 이미지 URL 실시간 처리 및 저장
 
 ## 🛠️ 기술 스택
 
@@ -98,7 +103,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 
 ### External APIs
 - **Claude Vision API**: AI 이미지 분석 및 큐레이션
-- **Product Search API**: 상품 검색 및 이미지 제공
+- **Product Search API**: 상품 검색 및 이미지 제공 (리스트 형태 응답)
 
 ### Development Tools
 - **Swagger/OpenAPI**: API 문서화
@@ -111,11 +116,14 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - `POST /api/chat/send` - 메시지 전송 및 큐 저장
 - `GET /api/chat/receive` - AI 응답 메시지 수신 (폴링)
 - `GET /api/chat/rooms/history` - 채팅방 히스토리 조회
+- `GET /api/chat/rooms/{roomId}/messages` - 채팅방 메시지 목록 조회 (무한 스크롤)
 
 ### 이미지 처리
 - `POST /api/chat/upload` - 이미지 파일 업로드 (S3)
 
 ### 응답 형식 예시
+
+#### AI 응답 (receive API)
 ```json
 {
   "status": "success",
@@ -126,7 +134,48 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
     "agent_id": "fitting_coordinator",
     "agent_name": "핏팅 코디네이터",
     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
-    "product_image_url": "https://example.com/product-image.jpg"
+    "product_image_url": [
+      "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+      "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+    ]
+  }
+}
+```
+
+#### 메시지 목록 조회 (messages API)
+```json
+{
+  "status": "success",
+  "message": "채팅 메시지 목록을 성공적으로 조회했습니다.",
+  "data": {
+    "messages": [
+      {
+        "id": 1,
+        "content": "내일 소개팅 가는데 입을 옷 추천해줘",
+        "image_url": null,
+        "message_type": "USER",
+        "created_at": "2024-01-15T09:30:00Z",
+        "agent_type": null,
+        "agent_name": null,
+        "product_image_url": null
+      },
+      {
+        "id": 2,
+        "content": "소개팅에 어울리는 스타일을 추천해드리겠습니다.",
+        "image_url": null,
+        "message_type": "STYLE",
+        "created_at": "2024-01-15T09:35:00Z",
+        "agent_type": "STYLE",
+        "agent_name": "스타일 분석가",
+        "product_image_url": [
+          "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+          "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+        ]
+      }
+    ],
+    "has_more": true,
+    "next_cursor": "2024-01-15T09:30:00Z",
+    "count": 2
   }
 }
 ```
@@ -141,7 +190,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 2. 메시지 수신 흐름
 ```
 GET /chat/receive → ChatController → QueueService → Claude Vision API → 
-ProductSearchService → 응답 반환
+ProductSearchService → 상품 이미지 URL 추출 → 데이터베이스 저장 → 응답 반환
 ```
 
 ### 3. 이미지 처리 흐름
@@ -149,16 +198,44 @@ ProductSearchService → 응답 반환
 이미지 업로드 → ImageService → AWS S3 → URL 반환
 ```
 
+### 4. 상품 이미지 처리 흐름
+```
+AI 응답 → ProductSearchService → 외부 검색 API → 이미지 URL 리스트 추출 → 
+개별 메시지로 저장 → 사용자에게 리스트 형태로 제공
+```
+
 ## 🗄️ 데이터베이스 스키마
 
 ### PostgreSQL
 - **chat_rooms**: 채팅방 정보
-- **chat_messages**: 메시지 히스토리 (sender_type 포함)
+- **chat_messages**: 메시지 히스토리
+  - `sender_type`: 메시지 발신자 타입 (USER, STYLE, TREND, COLOR, FITTING_COORDINATOR, *_PRODUCT)
+  - `message`: 메시지 내용
+  - `image_url`: 사용자 업로드 이미지 URL
+  - `product_image_url`: AI 추천 상품 이미지 URL (개별 저장)
 - **users**: 사용자 정보
 
 ### Redis
 - **chat_queue**: 메시지 큐
 - **prompt_history**: 프롬프트 히스토리 (누적 방식)
+
+## 🔧 최근 업데이트 사항
+
+### v1.2.0 (2024-01-15)
+- **상품 이미지 처리 개선**: 
+  - 외부 API 응답 형식 변경 대응 (단일 URL → 리스트 형태)
+  - 각 상품 이미지를 개별 메시지로 저장하여 관리 용이성 향상
+  - 사용자에게는 리스트 형태로 제공하여 일관성 유지
+- **메시지 저장 구조 최적화**:
+  - AI 응답 메시지와 상품 이미지 메시지 분리 저장
+  - `_PRODUCT` 접미사를 통한 상품 이미지 메시지 구분
+- **API 응답 형식 표준화**:
+  - `product_image_url` 필드를 리스트 형태로 통일
+  - Swagger 문서 업데이트
+
+### v1.1.0 (2024-01-10)
+- **무한 스크롤 기능 추가**: 페이지네이션을 통한 효율적인 메시지 조회
+- **메시지 히스토리 개선**: 사용자 업로드 이미지와 AI 추천 이미지 분리 관리
 
 ## 🚀 실행 방법
 
@@ -190,8 +267,26 @@ cd TheFirstTake-backend/thefirsttake
 ## 📊 모니터링 & 로깅
 
 - **애플리케이션 로그**: Spring Boot 기본 로깅
-- **API 호출 로그**: 상품 검색 API 호출 결과
+- **API 호출 로그**: 상품 검색 API 호출 결과 및 이미지 URL 처리 로그
 - **에러 추적**: 상세한 에러 로그 및 스택 트레이스
+- **메시지 저장 로그**: AI 응답 및 상품 이미지 저장 상태 추적
+
+## 🔍 주요 기술적 특징
+
+### 메시지 저장 구조
+- **사용자 메시지**: 텍스트 + 업로드 이미지 (선택적)
+- **AI 응답 메시지**: 텍스트만 저장
+- **상품 이미지 메시지**: 각 상품 이미지를 개별 메시지로 저장 (`*_PRODUCT` 타입)
+
+### 상품 이미지 처리
+- **외부 API 연동**: Product Search API를 통한 실시간 상품 검색
+- **리스트 처리**: 다중 상품 이미지 URL을 효율적으로 처리
+- **저장 최적화**: 각 이미지를 개별 레코드로 저장하여 관리 용이성 향상
+
+### 성능 최적화
+- **무한 스크롤**: 페이지네이션을 통한 메모리 효율적인 메시지 조회
+- **Redis 큐**: 비동기 메시지 처리로 응답 속도 향상
+- **S3 이미지 저장**: CDN을 통한 빠른 이미지 로딩
 
 ## 🤝 기여하기
 
