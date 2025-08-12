@@ -54,7 +54,7 @@ public class ChatMessage {
      * AI가 추천한 상품의 이미지 URL
      * - AI가 "이 상품을 추천드립니다"라고 하면서 추천 상품의 이미지
      * - 상품 검색 API에서 반환된 상품 이미지
-     * - 발신자: AI 에이전트 (STYLE, TREND, COLOR, FITTING)
+     * - 발신자: AI 에이전트 (STYLE, COLOR, FITTING)
      */
     @Column(name = "product_image_url", nullable = true, columnDefinition = "TEXT")
     private String productImageUrl;

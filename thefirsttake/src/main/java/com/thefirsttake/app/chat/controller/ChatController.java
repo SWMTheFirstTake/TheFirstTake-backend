@@ -399,7 +399,7 @@ public class ChatController {
     
     @Operation(
             summary = "채팅 에이전트 응답 메시지 수신",
-            description = "Redis 큐에서 해당 채팅방에 대한 AI 에이전트 응답 메시지가 있는 경우, 핏팅 코디네이터의 최종 종합 추천을 반환합니다. 이는 모든 전문가들의 의견을 종합한 최적의 패션 추천입니다.",
+            description = "Redis 큐에서 해당 채팅방에 대한 AI 에이전트 응답 메시지가 있는 경우, 단일 전문가의 분석 결과를 반환합니다. 스타일 분석가, 컬러 전문가, 핏팅 코디네이터 중 하나의 전문가가 분석한 결과입니다.",
             parameters = {
                     @Parameter(
                             name = "roomId",
@@ -411,23 +411,23 @@ public class ChatController {
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "핏팅 코디네이터 최종 추천 수신 성공",
+                            description = "단일 전문가 분석 결과 수신 성공",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = CommonResponse.class),
                                     examples = @ExampleObject(
                                             name = "성공 응답 예시",
-                                            summary = "Redis에서 가져온 핏팅 코디네이터 최종 추천",
+                                            summary = "Redis에서 가져온 단일 전문가 분석 결과",
                                                                                          value = """
                                              {
                                                   "status": "success",
                                                   "message": "요청 성공",
                                                   "data": {
-                                                      "message": "전문가들의 다양한 의견을 종합해 보았습니다. 최종적으로 다음과 같은 코디네이션을 추천드립니다.\\n\\n차콜 그레이 울 슬림핏 정장 바지와 화이트 코튼 슬림핏 셔츠, 그리고 네이비 코튼 슬림핏 블레이저를 추천드립니다. 이 조합은 전문가들이 공통적으로 제안한 것으로, 깔끔하면서도 세련된 느낌을 연출할 수 있습니다. \\n\\n특히 차콜 그레이 울 소재와 화이트 코튼 소재의 대비가 시각적으로 좋은 효과를 줄 것 같습니다. 여기에 네이비 블레이저를 레이어링하면 격식 있는 소개팅 룩으로 더욱 적합할 것 같습니다.\\n\\n전체적으로 이 조합은 모던하고 성숙한 느낌을 연출할 수 있어 소개팅 자리에 잘 어울릴 것 같습니다.",
+                                                      "message": "소개팅에 어울리는 스타일을 분석해보겠습니다. 체형과 핏감을 중심으로 추천해드리겠습니다.\\n\\n차콜 그레이 울 슬림핏 정장 바지와 화이트 코튼 슬림핏 셔츠, 그리고 네이비 코튼 슬림핏 블레이저를 추천드립니다. 이 조합은 깔끔하면서도 세련된 느낌을 연출할 수 있습니다. \\n\\n특히 차콜 그레이 울 소재와 화이트 코튼 소재의 대비가 시각적으로 좋은 효과를 줄 것 같습니다. 여기에 네이비 블레이저를 레이어링하면 격식 있는 소개팅 룩으로 더욱 적합할 것 같습니다.\\n\\n전체적으로 이 조합은 모던하고 성숙한 느낌을 연출할 수 있어 소개팅 자리에 잘 어울릴 것 같습니다.",
                                                       "order": 1,
-                                                      "agent_id": "fitting_coordinator",
-                                                      "agent_name": "핏팅 코디네이터",
-                                                      "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
+                                                      "agent_id": "style_analyst",
+                                                      "agent_name": "스타일 분석가",
+                                                      "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
                                                       "product_image_url": [
                                                           "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
                                                           "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"

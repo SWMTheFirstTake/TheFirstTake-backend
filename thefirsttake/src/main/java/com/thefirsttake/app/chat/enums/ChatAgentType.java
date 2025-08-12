@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ChatAgentType {
     STYLE_ANALYST("style_analyst", "스타일 분석 전문가"),
-    TREND_EXPERT("trend_expert", "트렌드 전문가"),
     COLOR_EXPERT("color_expert", "컬러 전문가"),
     FITTING_COORDINATOR("fitting_coordinator", "피팅 코디네이터");
 

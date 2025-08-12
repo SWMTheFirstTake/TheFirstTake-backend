@@ -273,7 +273,7 @@ public class ChatMessageService {
                 .createdAt(message.getCreatedAt())
                 .agentType(message.getSenderType().equals("USER") ? null : message.getSenderType())
                 .agentName(message.getSenderType().equals("USER") ? null : 
-                        ChatAgentConstants.AGENT_NAME_MAPPING.getOrDefault(message.getSenderType(), message.getSenderType()))
+                        ChatAgentConstants.DB_AGENT_NAME_MAPPING.getOrDefault(message.getSenderType(), message.getSenderType()))
                 .productImageUrl(productImageUrlList)  // AI 추천 상품 이미지
                 .build();
     }
