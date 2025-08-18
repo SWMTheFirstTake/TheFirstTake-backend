@@ -165,15 +165,15 @@ public class ChatMessageService {
 
         chatMessageRepository.save(responseMessage);
 
-        // 2. 각 상품 이미지를 개별 메시지로 저장
-        if (agentResponse.getProductImageUrl() != null && !agentResponse.getProductImageUrl().isEmpty()) {
-            for (String productImageUrl : agentResponse.getProductImageUrl()) {
+        // 2. 각 상품 정보를 개별 메시지로 저장
+        if (agentResponse.getProducts() != null && !agentResponse.getProducts().isEmpty()) {
+            for (com.thefirsttake.app.chat.dto.response.ProductInfo product : agentResponse.getProducts()) {
                 ChatMessage productMessage = ChatMessage.builder()
                         .user(user)
                         .chatRoom(chatRoom)
                         .senderType(dbAgentId + "_PRODUCT")  // 상품 이미지 메시지 구분
-                        .message("추천 상품 이미지")
-                        .productImageUrl(productImageUrl)  // 개별 상품 이미지 URL
+                        .message("추천 상품: " + product.getProductId())
+                        .productImageUrl(product.getProductUrl())  // 개별 상품 이미지 URL
                         .build();
 
                 chatMessageRepository.save(productMessage);

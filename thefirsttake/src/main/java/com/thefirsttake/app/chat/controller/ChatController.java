@@ -430,13 +430,15 @@ public class ChatController {
                                                       "agent_id": "style_analyst",
                                                       "agent_name": "스타일 분석가",
                                                       "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
-                                                      "product_image_url": [
-                                                          "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
-                                                          "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
-                                                      ],
-                                                      "product_ids": [
-                                                          "4227290",
-                                                          "3797063"
+                                                      "products": [
+                                                          {
+                                                              "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+                                                              "product_id": "4227290"
+                                                          },
+                                                          {
+                                                              "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg",
+                                                              "product_id": "3797063"
+                                                          }
                                                       ]
                                                   }
                                               }
@@ -536,16 +538,26 @@ public class ChatController {
         java.util.List<String> productImageUrls = productSearchService.extractProductImageUrls(searchResult);
         java.util.List<String> productIds = productCacheService.extractProductIds(searchResult);
         
-        if (!productImageUrls.isEmpty()) {
-            agentResponse.setProductImageUrl(productImageUrls);
+        // 상품 정보를 products 배열로 구성
+        if (!productImageUrls.isEmpty() && !productIds.isEmpty()) {
+            java.util.List<com.thefirsttake.app.chat.dto.response.ProductInfo> products = new java.util.ArrayList<>();
+            
+            // URL과 ID의 개수가 같다고 가정하고 매핑
+            int minSize = Math.min(productImageUrls.size(), productIds.size());
+            for (int i = 0; i < minSize; i++) {
+                com.thefirsttake.app.chat.dto.response.ProductInfo productInfo = 
+                    com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
+                        .productUrl(productImageUrls.get(i))
+                        .productId(productIds.get(i))
+                        .build();
+                products.add(productInfo);
+            }
+            
+            agentResponse.setProducts(products);
+            System.out.println("상품 정보 " + products.size() + "개 설정: " + products);
         }
         
-        if (!productIds.isEmpty()) {
-            agentResponse.setProductIds(productIds);
-            System.out.println("상품 ID " + productIds.size() + "개 설정: " + productIds);
-        }
-        
-        // 상품 이미지나 상품 ID가 있는 경우 DB에 저장
+        // 상품 정보가 있는 경우 DB에 저장
         if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
             // 상품 이미지가 포함된 응답을 데이터베이스에 저장
             try {
