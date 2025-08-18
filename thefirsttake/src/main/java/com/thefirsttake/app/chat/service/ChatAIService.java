@@ -136,7 +136,7 @@ package com.thefirsttake.app.chat.service;
 
 import com.thefirsttake.app.chat.constant.ChatAgentConstants;
 import com.thefirsttake.app.chat.enums.ChatAgentType;
-import com.thefirsttake.app.common.response.ApiResponse;
+import com.thefirsttake.app.common.response.CommonResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -172,9 +172,9 @@ public class ChatAIService {
             Map<String, Object> requestMap = buildExpertSingleRequest(userInput, roomId, agent);
             // String fastApiUrl = "http://"+"localhost"+":"+llmServerPort+"/api/expert/single";
             String fastApiUrl = "http://"+llmServerHost+":"+llmServerPort+"/api/expert/single";
-
-            ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
-            ApiResponse body = response.getBody();
+            
+            ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
+            CommonResponse body = response.getBody();
 
             if (body == null || body.getData() == null) {
                 throw new RuntimeException("FastAPI 서버로부터 유효한 응답을 받지 못했습니다.");
@@ -202,8 +202,8 @@ public class ChatAIService {
             Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId);
             String fastApiUrl = "http://localhost:6020/api/expert/chain";
 
-            ResponseEntity<ApiResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, ApiResponse.class);
-            ApiResponse body = response.getBody();
+            ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
+            CommonResponse body = response.getBody();
 
             if (body == null || body.getData() == null) {
                 throw new RuntimeException("FastAPI 서버로부터 유효한 응답을 받지 못했습니다.");

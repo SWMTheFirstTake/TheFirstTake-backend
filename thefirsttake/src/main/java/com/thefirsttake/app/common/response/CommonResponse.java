@@ -1,6 +1,5 @@
 package com.thefirsttake.app.common.response;
 
-import com.thefirsttake.app.auth.dto.response.TokenResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,7 +15,7 @@ public class CommonResponse {
     private String status;
     @Schema(example = "Login successful")
     private String message;
-    @Schema(implementation = TokenResponse.class)
+    @Schema(description = "응답 데이터")
     private Object data;
     // ✅ 정적 팩토리 메서드
     public static CommonResponse success(Object data) {

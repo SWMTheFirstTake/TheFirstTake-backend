@@ -35,7 +35,7 @@ public class ChatMessage {
     // user 엔티티를 통해 발신자를 알 수 있지만, "시스템 메시지"나 "봇" 메시지 등
     // 특정 주체를 구분할 필요가 있다면 유지합니다.
     // user_id와 별개로 "누가 보냈는지"의 유형을 나타내는 용도.
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 100)
     private String senderType; // 'sender' 대신 'senderType'으로 이름을 변경하여 역할 명확화 (예: "USER", "BOT", "SYSTEM")
 
     @Column(nullable = false, columnDefinition = "TEXT")
