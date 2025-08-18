@@ -12,6 +12,7 @@ import com.thefirsttake.app.chat.service.ChatRoomManagementService;
 import com.thefirsttake.app.chat.service.ChatQueueService;
 import com.thefirsttake.app.chat.service.ChatOrchestrationService;
 import com.thefirsttake.app.chat.service.ProductSearchService;
+import com.thefirsttake.app.chat.service.ProductCacheService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
@@ -56,6 +57,7 @@ public class ChatController {
     private final ChatMessageService chatMessageService;
     private final S3Service s3Service;
     private final ProductSearchService productSearchService;
+    private final ProductCacheService productCacheService;
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -431,6 +433,10 @@ public class ChatController {
                                                       "product_image_url": [
                                                           "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
                                                           "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+                                                      ],
+                                                      "product_ids": [
+                                                          "4227290",
+                                                          "3797063"
                                                       ]
                                                   }
                                               }
@@ -519,12 +525,28 @@ public class ChatController {
         }
         System.out.println("상품 검색 결과: " + searchResult);
         
-        // 상품 이미지 URL 추출 및 설정
+        // 🔄 상품 정보를 Redis에 캐싱
+        try {
+            productCacheService.cacheProductsFromSearchResult(searchResult);
+        } catch (Exception e) {
+            log.warn("상품 정보 캐싱 중 오류 발생 (검색 결과 반환은 계속): {}", e.getMessage());
+        }
+        
+        // 상품 이미지 URL 및 상품 ID 추출
         java.util.List<String> productImageUrls = productSearchService.extractProductImageUrls(searchResult);
+        java.util.List<String> productIds = productCacheService.extractProductIds(searchResult);
+        
         if (!productImageUrls.isEmpty()) {
             agentResponse.setProductImageUrl(productImageUrls);
-        //     System.out.println("상품 이미지 URL {}개 설정: {}", productImageUrls.size(), productImageUrls);
-            
+        }
+        
+        if (!productIds.isEmpty()) {
+            agentResponse.setProductIds(productIds);
+            System.out.println("상품 ID " + productIds.size() + "개 설정: " + productIds);
+        }
+        
+        // 상품 이미지나 상품 ID가 있는 경우 DB에 저장
+        if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
             // 상품 이미지가 포함된 응답을 데이터베이스에 저장
             try {
                 UserEntity userEntity = chatRoomManagementService.getUserEntityByRoomId(roomId);
@@ -538,6 +560,123 @@ public class ChatController {
         }
         
         return CommonResponse.success(agentResponse);
+    }
+
+    @Operation(
+            summary = "상품 정보 조회",
+            description = "Redis에 캐시된 상품 정보를 product_id로 조회합니다. 상품명, 설명, 스타일 태그, TPO 태그 정보를 반환합니다.",
+            parameters = {
+                    @Parameter(
+                            name = "productId",
+                            description = "조회할 상품의 ID",
+                            required = true,
+                            schema = @Schema(type = "string"),
+                            example = "4227290"
+                    )
+            },
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "상품 정보 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = CommonResponse.class),
+                                    examples = @ExampleObject(
+                                            name = "성공 응답 예시",
+                                            summary = "Redis에서 조회한 상품 정보",
+                                            value = """
+                                            {
+                                                "status": "success",
+                                                "message": "요청 성공",
+                                                "data": {
+                                                    "product_name": "STRIPE SUNDAY SHIRT [IVORY]",
+                                                    "comprehensive_description": "베이지 색상의 세로 스트라이프 패턴이 돋보이는 반팔 셔츠입니다. 라운드넥 칼라와 버튼 여밈으로 심플한 디자인을 갖추고 있으며, 정면에는 패치 포켓이 있어 실용성을 더했습니다.",
+                                                    "style_tags": ["캐주얼", "모던", "심플 베이직"],
+                                                    "tpo_tags": ["데일리", "여행"]
+                                                }
+                                            }
+                                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "상품 정보를 찾을 수 없음",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "상품 없음 예시",
+                                            summary = "해당 product_id로 캐시된 상품 정보가 없는 경우",
+                                            value = """
+                                            {
+                                                "status": "fail",
+                                                "message": "상품 정보를 찾을 수 없습니다.",
+                                                "data": null
+                                            }
+                                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "잘못된 요청 (product_id 누락 등)",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "잘못된 요청 예시",
+                                            summary = "product_id가 누락되거나 잘못된 경우",
+                                            value = """
+                                            {
+                                                "status": "fail",
+                                                "message": "잘못된 요청입니다. product_id를 확인해주세요.",
+                                                "data": null
+                                            }
+                                            """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "서버 내부 오류",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    examples = @ExampleObject(
+                                            name = "서버 오류 예시",
+                                            summary = "Redis 조회 중 예상치 못한 오류 발생",
+                                            value = """
+                                            {
+                                                "status": "fail",
+                                                "message": "상품 정보 조회 중 오류가 발생했습니다.",
+                                                "data": null
+                                            }
+                                            """
+                                    )
+                            )
+                    )
+            }
+    )
+    @GetMapping("/product/{productId}")
+    public CommonResponse getProductInfo(@PathVariable("productId") String productId) {
+        try {
+            // 입력 유효성 검증
+            if (productId == null || productId.trim().isEmpty()) {
+                return CommonResponse.fail("잘못된 요청입니다. product_id를 확인해주세요.");
+            }
+            
+            // Redis에서 상품 정보 조회
+            Map<String, Object> productInfo = productCacheService.getProductInfo(productId.trim());
+            
+            if (productInfo == null) {
+                return CommonResponse.fail("상품 정보를 찾을 수 없습니다.");
+            }
+            
+            log.info("✅ 상품 정보 조회 성공: productId={}, keys={}", productId, productInfo.keySet());
+            return CommonResponse.success(productInfo);
+            
+        } catch (Exception e) {
+            log.error("❌ 상품 정보 조회 중 오류 발생: productId={}, error={}", productId, e.getMessage(), e);
+            return CommonResponse.fail("상품 정보 조회 중 오류가 발생했습니다.");
+        }
     }
 
     @Operation(

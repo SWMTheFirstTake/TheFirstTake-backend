@@ -49,4 +49,10 @@ public class ChatAgentResponse {
      */
     @JsonProperty("product_image_url")
     private java.util.List<String> productImageUrl;
+    
+    /**
+     * 상품 ID 리스트
+     */
+    @JsonProperty("product_ids")
+    private java.util.List<String> productIds;
 } 
