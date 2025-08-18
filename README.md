@@ -67,6 +67,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - **RAG 기반 지식 검색**: 패션 지식베이스를 활용한 정확한 추천
 - **상황별 맞춤 추천**: 소개팅, 면접, 데이트 등 상황별 최적 스타일
 - **상품 연동**: 추천 스타일에 맞는 실제 상품 이미지 제공 (다중 이미지 지원)
+- **상품 정보 캐싱**: Redis를 통한 상품 정보 자동 캐싱 및 빠른 조회
 - **개인화 분석**: 사용자 체형, 피부톤, 선호도 기반 맞춤 추천
 
 ### 📸 이미지 처리
@@ -95,7 +96,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 
 ### Database & Cache
 - **PostgreSQL**: 메인 데이터베이스 (채팅방, 메시지, 사용자 정보)
-- **Redis**: 캐시 및 메시지 큐 (채팅 큐, 프롬프트 히스토리)
+- **Redis**: 캐시 및 메시지 큐 (채팅 큐, 프롬프트 히스토리, 상품 정보 캐시)
 
 ### Cloud Services
 - **AWS S3**: 이미지 파일 저장
@@ -118,6 +119,9 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - `GET /api/chat/rooms/history` - 채팅방 히스토리 조회
 - `GET /api/chat/rooms/{roomId}/messages` - 채팅방 메시지 목록 조회 (무한 스크롤)
 
+### 상품 관리
+- `GET /api/chat/product/{productId}` - Redis 캐시된 상품 정보 조회
+
 ### 이미지 처리
 - `POST /api/chat/upload` - 이미지 파일 업로드 (S3)
 
@@ -134,10 +138,30 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
     "agent_id": "fitting_coordinator",
     "agent_name": "핏팅 코디네이터",
     "agent_role": "종합적으로 딱 하나의 추천을 해드려요!",
-    "product_image_url": [
-      "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
-      "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg"
+    "products": [
+      {
+        "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+        "product_id": "4227290"
+      },
+      {
+        "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/3797063/segment/5_0.jpg",
+        "product_id": "3797063"
+      }
     ]
+  }
+}
+```
+
+#### 상품 정보 조회 (product API)
+```json
+{
+  "status": "success",
+  "message": "요청 성공",
+  "data": {
+    "product_name": "STRIPE SUNDAY SHIRT [IVORY]",
+    "comprehensive_description": "베이지 색상의 세로 스트라이프 패턴이 돋보이는 반팔 셔츠입니다. 라운드넥 칼라와 버튼 여밈으로 심플한 디자인을 갖추고 있으며, 정면에는 패치 포켓이 있어 실용성을 더했습니다.",
+    "style_tags": ["캐주얼", "모던", "심플 베이직"],
+    "tpo_tags": ["데일리", "여행"]
   }
 }
 ```
@@ -190,7 +214,8 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 2. 메시지 수신 흐름
 ```
 GET /chat/receive → ChatController → QueueService → Claude Vision API → 
-ProductSearchService → 상품 이미지 URL 추출 → 데이터베이스 저장 → 응답 반환
+ProductSearchService → 상품 정보 Redis 캐싱 → 상품 이미지 URL 추출 → 
+products 배열 구성 → 데이터베이스 저장 → 응답 반환
 ```
 
 ### 3. 이미지 처리 흐름
@@ -200,8 +225,15 @@ ProductSearchService → 상품 이미지 URL 추출 → 데이터베이스 저�
 
 ### 4. 상품 이미지 처리 흐름
 ```
-AI 응답 → ProductSearchService → 외부 검색 API → 이미지 URL 리스트 추출 → 
-개별 메시지로 저장 → 사용자에게 리스트 형태로 제공
+AI 응답 → ProductSearchService → 외부 검색 API → 상품 정보 Redis 캐싱 → 
+이미지 URL & 상품 ID 추출 → products 배열 구성 → 개별 메시지로 저장 → 
+사용자에게 통합 객체 형태로 제공
+```
+
+### 5. 상품 정보 조회 흐름
+```
+GET /product/{productId} → ChatController → ProductCacheService → 
+Redis 캐시 조회 → 상품 정보 반환
 ```
 
 ## 🗄️ 데이터베이스 스키마
@@ -218,8 +250,26 @@ AI 응답 → ProductSearchService → 외부 검색 API → 이미지 URL 리�
 ### Redis
 - **chat_queue**: 메시지 큐
 - **prompt_history**: 프롬프트 히스토리 (누적 방식)
+- **product_id:{product_id}**: 상품 정보 캐시 (상품명, 설명, 태그 등)
 
 ## 🔧 최근 업데이트 사항
+
+### v1.3.0 (2024-01-18) - 상품 정보 관리 시스템 구축
+- **상품 정보 캐싱 시스템**:
+  - Redis를 활용한 상품 정보 자동 캐싱 (`product_id:{id}` 키 형태)
+  - AI 응답 시 상품명, 설명, 스타일/TPO 태그 자동 저장
+  - 중복 캐싱 방지 로직 구현
+- **상품 정보 조회 API 추가**:
+  - `GET /api/chat/product/{productId}` 엔드포인트 신규 추가
+  - 캐시된 상품 정보 빠른 조회 지원
+  - 완전한 Swagger 문서화
+- **응답 구조 개선**:
+  - 기존: `product_image_url[]`, `product_ids[]` (분리된 배열)
+  - 신규: `products[]` (URL과 ID가 묶인 객체 배열)
+  - 필드명 표준화: `product_url`, `product_id`
+- **데이터베이스 컬럼 확장**:
+  - `chat_messages.sender_type` 컬럼 길이 확장 (10자 → 100자)
+  - `*_PRODUCT` 접미사 지원으로 상품 메시지 구분 개선
 
 ### v1.2.0 (2024-01-15)
 - **상품 이미지 처리 개선**: 
@@ -278,10 +328,11 @@ cd TheFirstTake-backend/thefirsttake
 - **AI 응답 메시지**: 텍스트만 저장
 - **상품 이미지 메시지**: 각 상품 이미지를 개별 메시지로 저장 (`*_PRODUCT` 타입)
 
-### 상품 이미지 처리
+### 상품 정보 관리
 - **외부 API 연동**: Product Search API를 통한 실시간 상품 검색
-- **리스트 처리**: 다중 상품 이미지 URL을 효율적으로 처리
-- **저장 최적화**: 각 이미지를 개별 레코드로 저장하여 관리 용이성 향상
+- **Redis 캐싱**: 상품 정보 자동 캐싱으로 빠른 재조회 지원
+- **통합 객체 구조**: URL과 ID가 묶인 `products` 배열로 일관성 향상
+- **저장 최적화**: 각 상품을 개별 레코드로 저장하여 관리 용이성 향상
 
 ### 성능 최적화
 - **무한 스크롤**: 페이지네이션을 통한 메모리 효율적인 메시지 조회
