@@ -1,0 +1,153 @@
+package com.thefirsttake.app.fitting.client;
+
+import com.thefirsttake.app.fitting.dto.response.FitRoomTaskResponse;
+import com.thefirsttake.app.fitting.dto.response.FitRoomTaskStatus;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.*;
+import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+
+@Component
+@Slf4j
+public class FitRoomApiClient {
+    
+    private final RestTemplate restTemplate;
+    private final String apiKey;
+    private final String baseUrl = "https://platform.fitroom.app";
+    
+    public FitRoomApiClient(RestTemplate restTemplate, @Value("${fitroom.api.key}") String apiKey) {
+        this.restTemplate = restTemplate;
+        this.apiKey = apiKey;
+    }
+    
+    /**
+     * FitRoom에 가상피팅 작업 생성
+     */
+    public String createTask(MultipartFile modelImage, MultipartFile clothImage, 
+                           String clothType, boolean hdMode) {
+        try {
+            // Multipart 데이터 구성
+            MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+            
+            // 파일을 ByteArrayResource로 변환
+            formData.add("model_image", new ByteArrayResource(modelImage.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return modelImage.getOriginalFilename();
+                }
+            });
+            formData.add("cloth_image", new ByteArrayResource(clothImage.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return clothImage.getOriginalFilename();
+                }
+            });
+            formData.add("cloth_type", clothType);
+            
+            if (hdMode) {
+                formData.add("hd_mode", "true");
+            }
+            
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-API-KEY", apiKey);
+            
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(formData, headers);
+            
+            // API 호출
+            String url = baseUrl + "/api/tryon/v2/tasks";
+            ResponseEntity<FitRoomTaskResponse> response = restTemplate.postForEntity(url, requestEntity, FitRoomTaskResponse.class);
+            
+            if (response.getBody() == null || response.getBody().getTaskId() == null) {
+                throw new RuntimeException("FitRoom 작업 생성 실패: 응답이 null입니다.");
+            }
+            
+            return response.getBody().getTaskId();
+            
+        } catch (IOException e) {
+            log.error("파일 읽기 실패", e);
+            throw new RuntimeException("파일 읽기 실패: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("FitRoom 작업 생성 실패", e);
+            throw new RuntimeException("FitRoom 작업 생성 실패: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 작업 완료까지 대기 (폴링)
+     */
+    public String waitForCompletion(String taskId) {
+        int maxAttempts = 60; // 최대 5분 대기 (5초 간격)
+        int attempt = 0;
+        
+        while (attempt < maxAttempts) {
+            try {
+                Thread.sleep(5000); // 5초 대기
+                
+                FitRoomTaskStatus status = getTaskStatus(taskId);
+                log.info("작업 상태 확인: taskId={}, status={}, progress={}", 
+                        taskId, status.getStatus(), status.getProgress());
+                
+                if ("COMPLETED".equals(status.getStatus())) {
+                    if (status.getDownloadSignedUrl() == null) {
+                        throw new RuntimeException("완료되었지만 다운로드 URL이 없습니다.");
+                    }
+                    return status.getDownloadSignedUrl();
+                    
+                } else if ("FAILED".equals(status.getStatus())) {
+                    throw new RuntimeException("FitRoom 작업 실패: " + status.getError());
+                }
+                
+                attempt++;
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("작업 대기 중 인터럽트 발생", e);
+            } catch (Exception e) {
+                log.warn("상태 확인 실패 (재시도): taskId={}, attempt={}, error={}", 
+                        taskId, attempt, e.getMessage());
+                attempt++;
+                
+                if (attempt >= maxAttempts) {
+                    throw new RuntimeException("작업 상태 확인 최대 재시도 초과", e);
+                }
+            }
+        }
+        
+        throw new RuntimeException("작업 완료 대기 시간 초과 (5분): taskId=" + taskId);
+    }
+    
+    /**
+     * 작업 상태 조회
+     */
+    private FitRoomTaskStatus getTaskStatus(String taskId) {
+        try {
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-API-KEY", apiKey);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            String url = baseUrl + "/api/tryon/v2/tasks/" + taskId;
+            ResponseEntity<FitRoomTaskStatus> response = restTemplate.exchange(
+                url, HttpMethod.GET, entity, FitRoomTaskStatus.class);
+            
+            if (response.getBody() == null) {
+                throw new RuntimeException("상태 조회 응답이 null입니다.");
+            }
+            
+            return response.getBody();
+            
+        } catch (Exception e) {
+            log.error("작업 상태 조회 실패: taskId={}", taskId, e);
+            throw new RuntimeException("작업 상태 조회 실패: " + e.getMessage(), e);
+        }
+    }
+}

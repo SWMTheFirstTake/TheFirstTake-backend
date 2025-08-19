@@ -23,6 +23,7 @@ jobs:
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
+      FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
 
     steps:
       - name: Checkout code
@@ -64,6 +65,7 @@ jobs:
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
+      FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
 
     steps:
       - name: Download build artifact
@@ -139,25 +141,13 @@ jobs:
             echo 'Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="FITROOM_API_KEY=${{ secrets.FITROOM_API_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
 
             # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
             sudo systemctl daemon-reload
-            
-            # 기존 방식 (주석 처리) - 필요시 주석 해제하여 사용 가능
-            # systemd 서비스를 통해 환경 변수를 설정합니다.
-            # 이 환경 변수들은 thefirsttake.service 파일의 ExecStart 명령에 사용됩니다.
-            # sudo systemctl set-environment SPRING_DATASOURCE_URL="jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"
-            # sudo systemctl set-environment SPRING_DATASOURCE_USERNAME="${{ secrets.POSTGRES_USER }}"
-            # sudo systemctl set-environment SPRING_DATASOURCE_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
-            # sudo systemctl set-environment SPRING_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
-            # sudo systemctl set-environment LLM_SERVER_HOST="${{ secrets.LLM_SERVER_HOST }}"
-            # sudo systemctl set-environment LLM_SERVER_PORT="${{ secrets.LLM_SERVER_PORT }}"
-            # sudo systemctl set-environment AI_SERVER_HOST="${{ secrets.AI_SERVER_HOST }}"
-            # sudo systemctl set-environment AI_SERVER_PORT="${{ secrets.AI_SERVER_PORT }}"
-            # sudo systemctl set-environment REDIS_ENDPOINT="${{ secrets.REDIS_ENDPOINT }}"
             
             # 서비스를 활성화하고 시작합니다.
             # 'enable'은 시스템 부팅 시 서비스가 자동으로 시작되도록 설정합니다.
