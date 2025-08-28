@@ -38,9 +38,9 @@ public class SimpleFittingController {
     @PostMapping("/try-on")
     @Operation(
         summary = "가상피팅 실행",
-        description = "모델 이미지와 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+        description = "모델 이미지와 장바구니에 있는 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
                      "**Content-Type**: multipart/form-data\n\n" +
-                     "**주의**: modelImage와 clothImage는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
+                     "**주의**: model_image와 cloth_image(장바구니에 있는 옷)는 이미지 파일입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
                      "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
     )
     @ApiResponses(value = {
@@ -58,7 +58,7 @@ public class SimpleFittingController {
     public ResponseEntity<CommonResponse> tryOn(
             @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("model_image") MultipartFile modelImage,
-            @Parameter(name = "cloth_image", description = "옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @Parameter(name = "cloth_image", description = "장바구니에 있는 옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("cloth_image") MultipartFile clothImage,
             @Parameter(name = "cloth_type", description = "옷 종류 (upper: 상의, lower: 하의)", required = true, example = "upper")
             @RequestParam("cloth_type") String clothType,
@@ -103,7 +103,7 @@ public class SimpleFittingController {
     @PostMapping("/try-on/combo")
     @Operation(
         summary = "콤보 가상피팅 실행",
-        description = "모델 이미지와 상의, 하의 이미지를 받아서 동시에 입히는 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+        description = "모델 이미지와 장바구니에 있는 상의, 하의 이미지를 받아서 동시에 입히는 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
                      "**Content-Type**: multipart/form-data\n\n" +
                      "**주의**: model_image, cloth_image(상의), lower_cloth_image(하의)는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
                      "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
@@ -123,9 +123,9 @@ public class SimpleFittingController {
     public ResponseEntity<CommonResponse> tryOnCombo(
             @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("model_image") MultipartFile modelImage,
-            @Parameter(name = "cloth_image", description = "상의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @Parameter(name = "cloth_image", description = "장바구니에 있는 상의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("cloth_image") MultipartFile clothImage,
-            @Parameter(name = "lower_cloth_image", description = "하의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @Parameter(name = "lower_cloth_image", description = "장바구니에 있는 하의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("lower_cloth_image") MultipartFile lowerClothImage,
             @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
