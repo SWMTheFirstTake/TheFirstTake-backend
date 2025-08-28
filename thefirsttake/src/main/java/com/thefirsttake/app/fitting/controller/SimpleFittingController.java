@@ -55,14 +55,14 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOn(
-            @Parameter(description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("modelImage") MultipartFile modelImage,
-            @Parameter(description = "옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("clothImage") MultipartFile clothImage,
-            @Parameter(description = "옷 종류 (upper: 상의, lower: 하의)", required = true, example = "upper")
-            @RequestParam("clothType") String clothType,
-            @Parameter(description = "HD 모드 여부", required = false, example = "false")
-            @RequestParam(value = "hdMode", defaultValue = "false") boolean hdMode) {
+            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam("model_image") MultipartFile modelImage,
+            @Parameter(name = "cloth_image", description = "옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam("cloth_image") MultipartFile clothImage,
+            @Parameter(name = "cloth_type", description = "옷 종류 (upper: 상의, lower: 하의)", required = true, example = "upper")
+            @RequestParam("cloth_type") String clothType,
+            @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
+            @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
             log.info("가상피팅 시작: clothType={}, hdMode={}", clothType, hdMode);

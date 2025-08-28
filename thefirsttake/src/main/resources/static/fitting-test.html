@@ -891,7 +891,7 @@
                 alert('모델 사진을 선택해주세요.');
                 return;
             }
-            formData.append('modelImage', modelImage);
+            formData.append('model_image', modelImage);
             
             // 현재 모델 이미지 저장 (미리보기용)
             const modelReader = new FileReader();
@@ -907,7 +907,7 @@
                     alert('옷 사진을 선택해주세요.');
                     return;
                 }
-                formData.append('clothImage', clothImage);
+                formData.append('cloth_image', clothImage);
                 
                 // 현재 옷 이미지 저장 (미리보기용)
                 const clothReader = new FileReader();
@@ -924,15 +924,15 @@
                 // dataURL을 Blob으로 변환
                 const response = await fetch(selectedCloth.dataUrl);
                 const blob = await response.blob();
-                formData.append('clothImage', blob, selectedCloth.name);
+                formData.append('cloth_image', blob, selectedCloth.name);
                 
                 // 현재 옷 이미지 저장
                 currentClothImage = selectedCloth.dataUrl;
             }
             
             // 기타 데이터 추가
-            formData.append('clothType', document.getElementById('clothType').value);
-            formData.append('hdMode', document.getElementById('hdMode').checked);
+            formData.append('cloth_type', document.getElementById('clothType').value);
+            formData.append('hd_mode', document.getElementById('hdMode').checked);
             
             const submitBtn = document.getElementById('submitBtn');
             const loading = document.getElementById('loading');
