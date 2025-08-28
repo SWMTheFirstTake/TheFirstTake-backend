@@ -39,6 +39,7 @@ public class SimpleFittingController {
     @Operation(
         summary = "가상피팅 실행",
         description = "모델 이미지와 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+                     "**Content-Type**: multipart/form-data\n\n" +
                      "**주의**: modelImage와 clothImage는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
                      "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
     )
@@ -103,6 +104,7 @@ public class SimpleFittingController {
     @Operation(
         summary = "콤보 가상피팅 실행",
         description = "모델 이미지와 상의, 하의 이미지를 받아서 동시에 입히는 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+                     "**Content-Type**: multipart/form-data\n\n" +
                      "**주의**: model_image, cloth_image(상의), lower_cloth_image(하의)는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
                      "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
     )
