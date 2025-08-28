@@ -38,7 +38,9 @@ public class SimpleFittingController {
     @PostMapping("/try-on")
     @Operation(
         summary = "가상피팅 실행",
-        description = "모델 이미지와 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다."
+        description = "모델 이미지와 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+                     "**주의**: modelImage와 clothImage는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
+                     "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -53,9 +55,9 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOn(
-            @Parameter(description = "모델 사진 파일", required = true)
+            @Parameter(description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("modelImage") MultipartFile modelImage,
-            @Parameter(description = "옷 사진 파일", required = true)
+            @Parameter(description = "옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("clothImage") MultipartFile clothImage,
             @Parameter(description = "옷 종류 (upper: 상의, lower: 하의)", required = true, example = "upper")
             @RequestParam("clothType") String clothType,
