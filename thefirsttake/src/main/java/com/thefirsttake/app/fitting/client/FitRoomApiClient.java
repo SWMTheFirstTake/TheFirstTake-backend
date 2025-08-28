@@ -82,6 +82,66 @@ public class FitRoomApiClient {
     }
     
     /**
+     * FitRoom에 콤보 가상피팅 작업 생성 (상하의 동시)
+     */
+    public String createComboTask(MultipartFile modelImage, MultipartFile clothImage, 
+                                MultipartFile lowerClothImage, boolean hdMode) {
+        try {
+            // Multipart 데이터 구성
+            MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+            
+            // 파일을 ByteArrayResource로 변환
+            formData.add("model_image", new ByteArrayResource(modelImage.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return modelImage.getOriginalFilename();
+                }
+            });
+            formData.add("cloth_image", new ByteArrayResource(clothImage.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return clothImage.getOriginalFilename();
+                }
+            });
+            formData.add("lower_cloth_image", new ByteArrayResource(lowerClothImage.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return lowerClothImage.getOriginalFilename();
+                }
+            });
+            formData.add("cloth_type", "combo");
+            
+            if (hdMode) {
+                formData.add("hd_mode", "true");
+            }
+            
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-API-KEY", apiKey);
+            
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(formData, headers);
+            
+            // API 호출
+            String url = baseUrl + "/api/tryon/v2/tasks";
+            ResponseEntity<FitRoomTaskResponse> response = restTemplate.postForEntity(url, requestEntity, FitRoomTaskResponse.class);
+            
+            if (response.getBody() == null || response.getBody().getTaskId() == null) {
+                throw new RuntimeException("FitRoom 콤보 작업 생성 실패: 응답이 null입니다.");
+            }
+            
+            return response.getBody().getTaskId();
+            
+        } catch (IOException e) {
+            log.error("파일 읽기 실패", e);
+            throw new RuntimeException("파일 읽기 실패: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("FitRoom 콤보 작업 생성 실패", e);
+            throw new RuntimeException("FitRoom 콤보 작업 생성 실패: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * 작업 완료까지 대기 (폴링)
      */
     public String waitForCompletion(String taskId) {
