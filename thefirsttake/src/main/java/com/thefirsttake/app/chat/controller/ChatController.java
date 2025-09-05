@@ -950,7 +950,11 @@ public class ChatController {
                                             @ExampleObject(
                                                     name = "연결 성공",
                                                     summary = "SSE 연결이 성공적으로 설정됨",
-                                                    value = "event: connect\ndata: SSE 연결 성공\n\n"
+                                                    value = """
+                                                    event: connect
+                                                    data: {"status":"success","message":"요청 성공","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1757045016039}}
+                                                    
+                                                    """
                                             ),
                                             @ExampleObject(
                                                     name = "AI 응답 스트리밍",
@@ -1060,7 +1064,15 @@ public class ChatController {
         emitter.onError(e -> cancelled.set(true));
 
         try {
-            emitter.send(SseEmitter.event().name("connect").data("SSE 연결 성공"));
+            // connect 이벤트를 CommonResponse 형식으로 변경
+            Map<String, Object> connectData = new HashMap<>();
+            connectData.put("message", "SSE 연결 성공");
+            connectData.put("type", "connect");
+            connectData.put("timestamp", System.currentTimeMillis());
+            
+            CommonResponse connectResponse = CommonResponse.success(connectData);
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(connectResponse);
+            emitter.send(SseEmitter.event().name("connect").data(json));
         } catch (IOException e) {
             log.warn("초기 SSE 메시지 전송 실패", e);
         }
@@ -1351,7 +1363,11 @@ public class ChatController {
                                             @ExampleObject(
                                                     name = "연결 성공",
                                                     summary = "SSE 연결이 성공적으로 설정됨",
-                                                    value = "event: connect\ndata: SSE 연결 성공\n\n"
+                                                    value = """
+                                                    event: connect
+                                                    data: {"status":"success","message":"요청 성공","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1757045016039}}
+                                                    
+                                                    """
                                             ),
                                             @ExampleObject(
                                                     name = "AI 응답 스트리밍",
@@ -1467,7 +1483,15 @@ public class ChatController {
         final Long resolvedRoomId = finalRoomId;
 
         try {
-            emitter.send(SseEmitter.event().name("connect").data("SSE 연결 성공"));
+            // connect 이벤트를 CommonResponse 형식으로 변경
+            Map<String, Object> connectData = new HashMap<>();
+            connectData.put("message", "SSE 연결 성공");
+            connectData.put("type", "connect");
+            connectData.put("timestamp", System.currentTimeMillis());
+            
+            CommonResponse connectResponse = CommonResponse.success(connectData);
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(connectResponse);
+            emitter.send(SseEmitter.event().name("connect").data(json));
         } catch (IOException e) {
             log.warn("초기 SSE 메시지 전송 실패", e);
         }

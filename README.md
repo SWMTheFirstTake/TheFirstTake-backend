@@ -179,7 +179,15 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 1. **연결 성공** (`connect` 이벤트):
 ```
 event: connect
-data: "SSE 연결 성공"
+data: {
+  "status": "success",
+  "message": "요청 성공",
+  "data": {
+    "message": "SSE 연결 성공",
+    "type": "connect",
+    "timestamp": 1757045016039
+  }
+}
 ```
 
 2. **방 정보** (`room` 이벤트) - 자동 방 생성 API에서만:
