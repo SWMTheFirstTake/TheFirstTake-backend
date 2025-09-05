@@ -63,12 +63,15 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 
 ### 💬 AI 기반 채팅 인터페이스
 - **LLM 기반 질의응답**: 자연어로 패션 상담 및 스타일 추천
-- **실시간 폴링 방식**: `/chat/receive` API를 통한 실시간 메시지 수신
+- **실시간 메시지 수신**: 
+  - **폴링 방식**: 기존 `/chat/receive` API를 통한 상태 조회
+  - **SSE 방식**: `/chat/receive/sse` API를 통한 실시간 메시지 수신
 - **다중 에이전트 시스템**: 
   - 스타일 분석가 (Style Analyst)
   - 트렌드 전문가 (Trend Expert) 
   - 컬러 전문가 (Color Expert)
   - 핏팅 코디네이터 (Fitting Coordinator)
+- **SSE 지원**: 실시간으로 AI 응답을 클라이언트에 전송하여 사용자 경험 향상
 
 ### 🎨 패션 큐레이션 & 추천
 - **RAG 기반 지식 검색**: 패션 지식베이스를 활용한 정확한 추천
@@ -126,6 +129,9 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 채팅 관련
 - `POST /api/chat/send` - 메시지 전송 및 큐 저장
 - `GET /api/chat/receive` - AI 응답 메시지 수신 (폴링)
+- `GET /api/chat/receive/sse` - **SSE를 통한 AI 응답 메시지 실시간 수신**
+- `GET /api/chat/rooms/{roomId}/messages/stream` - **스트림 API: 특정 방에서 실시간 AI 응답 수신**
+- `GET /api/chat/rooms/messages/stream` - **스트림 API: 자동 방 생성 및 실시간 AI 응답 수신**
 - `GET /api/chat/rooms/history` - 채팅방 히스토리 조회
 - `GET /api/chat/rooms/{roomId}/messages` - 채팅방 메시지 목록 조회 (무한 스크롤)
 
@@ -162,6 +168,114 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
       }
     ]
   }
+}
+```
+
+#### SSE를 통한 AI 응답 (receive/sse API)
+**응답 형식**: `text/event-stream` (Server-Sent Events)
+
+**이벤트 타입별 메시지**:
+
+1. **연결 성공** (`connected` 이벤트):
+```
+event: connected
+data: "채팅 연결이 설정되었습니다. AI 응답을 기다리는 중..."
+```
+
+2. **AI 응답 메시지** (`message` 이벤트):
+```
+event: message
+data: {
+  "message": "소개팅에 어울리는 스타일을 분석해보겠습니다...",
+  "order": 1,
+  "agent_id": "style_analyst",
+  "agent_name": "스타일 분석가",
+  "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
+  "products": [
+    {
+      "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
+      "product_id": "4227290"
+    }
+  ]
+}
+```
+
+3. **에러** (`error` 이벤트):
+```
+event: error
+data: "메시지 처리 중 오류가 발생했습니다: [에러 메시지]"
+```
+
+#### 스트림 API 응답 (rooms/{roomId}/messages/stream, rooms/messages/stream)
+**응답 형식**: `text/event-stream` (Server-Sent Events)
+
+**이벤트 타입별 메시지**:
+
+1. **연결 성공** (`connect` 이벤트):
+```
+event: connect
+data: "SSE 연결 성공"
+```
+
+2. **방 정보** (`room` 이벤트) - 자동 방 생성 API에서만:
+```
+event: room
+data: {
+  "type": "room",
+  "data": {
+    "room_id": 259
+  },
+  "timestamp": 1757045016039
+}
+```
+
+3. **AI 응답 스트리밍** (`content` 이벤트):
+```
+event: content
+data: {
+  "status": "success",
+  "message": "요청 성공",
+  "data": {
+    "message": "소개팅에 어울리는 스타일을 분석해보겠습니다...",
+    "agent_id": "style_analyst",
+    "agent_name": "스타일 분석가",
+    "type": "content",
+    "timestamp": 1757045028619
+  }
+}
+```
+
+4. **완료 및 상품 추천** (`complete` 이벤트):
+```
+event: complete
+data: {
+  "status": "success",
+  "message": "요청 성공",
+  "data": {
+    "message": "브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...",
+    "agent_id": "style_analyst",
+    "agent_name": "스타일 분석가",
+    "products": [
+      {
+        "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg",
+        "product_id": "4989731"
+      },
+      {
+        "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/BOTTOM/3002/4557903/segment/4557903_seg_003.jpg",
+        "product_id": "4557903"
+      }
+    ]
+  }
+}
+```
+
+5. **에러** (`error` 이벤트):
+```
+event: error
+data: {
+  "status": "fail",
+  "message": "스트림 처리 오류: [에러 메시지]",
+  "data": null
 }
 ```
 
@@ -308,6 +422,25 @@ GET /fitting/result/{taskId} → SimpleFittingController → FitRoomApiClient �
 FitRoom API 결과 조회 → 피팅 결과 이미지 URL 반환
 ```
 
+### 7. 스트림 API 처리 흐름
+```
+GET /rooms/{roomId}/messages/stream → ChatController → 
+세션 기반 사용자 생성/조회 → 사용자 메시지 DB 저장 → 
+외부 AI 스트림 API 호출 → 실시간 응답 스트리밍 → 
+상품 검색 → 상품 정보 Redis 캐싱 → AI 응답 DB 저장 → 
+SSE 이벤트 전송 (connect, content, complete, error)
+```
+
+### 8. 자동 방 생성 스트림 API 처리 흐름
+```
+GET /rooms/messages/stream → ChatController → 
+세션 기반 사용자 생성/조회 → 채팅방 자동 생성 → 
+방 정보 SSE 전송 (room 이벤트) → 사용자 메시지 DB 저장 → 
+외부 AI 스트림 API 호출 → 실시간 응답 스트리밍 → 
+상품 검색 → 상품 정보 Redis 캐싱 → AI 응답 DB 저장 → 
+SSE 이벤트 전송 (connect, content, complete, error)
+```
+
 ## 🗄️ 데이터베이스 스키마
 
 ### PostgreSQL
@@ -325,6 +458,37 @@ FitRoom API 결과 조회 → 피팅 결과 이미지 URL 반환
 - **product_id:{product_id}**: 상품 정보 캐시 (상품명, 설명, 태그 등)
 
 ## 🔧 최근 업데이트 사항
+
+### v1.7.0 (2024-01-26) - 스트림 API 및 실시간 채팅 시스템 구축
+- **스트림 API 시스템 구축**:
+  - `GET /api/chat/rooms/{roomId}/messages/stream` - 특정 방에서 실시간 AI 응답 수신
+  - `GET /api/chat/rooms/messages/stream` - 자동 방 생성 및 실시간 AI 응답 수신
+  - CommonResponse 형식으로 모든 스트림 이벤트 표준화
+  - 사용자 메시지와 AI 응답을 PostgreSQL에 자동 저장
+- **실시간 스트리밍 기능**:
+  - `content` 이벤트: AI 응답 실시간 스트리밍
+  - `complete` 이벤트: 최종 완료 및 상품 추천
+  - `room` 이벤트: 방 정보 전송 (자동 방 생성 시)
+  - `error` 이벤트: 에러 처리
+- **다중 전문가 시스템**:
+  - 스타일 분석가, 컬러 전문가, 핏팅 코디네이터 동시 실행
+  - 각 전문가별 개별 응답 및 상품 추천
+  - 전문가별 이름 및 역할 정보 포함
+- **클라이언트 테스트 도구**:
+  - `chat-multi-expert-test.html` - 다중 전문가 스트림 테스트
+  - `sse-real-test.html`, `sse-test.html` - SSE 기능 테스트
+  - 실시간 메시지 수신 및 상품 이미지 표시 기능
+
+### v1.6.0 (2024-01-25) - 채팅 SSE 기반 실시간 메시지 수신 추가
+- **채팅 SSE(Server-Sent Events) 지원**:
+  - 실시간으로 AI 응답 메시지를 클라이언트에 전송
+  - 폴링 방식 대비 사용자 경험 향상 및 서버 부하 감소
+  - 이벤트 기반 메시지 전송으로 즉각적인 응답 제공
+- **새로운 채팅 SSE API 엔드포인트**:
+  - `GET /api/chat/receive/sse` - SSE를 통한 AI 응답 메시지 실시간 수신
+- **클라이언트 테스트 도구**:
+  - `chat-sse-test.html` - 채팅 SSE 기능을 테스트할 수 있는 웹 인터페이스 제공
+  - 실시간 메시지 수신 및 상품 이미지 표시 기능
 
 ### v1.4.0 (2024-01-20) - 가상 피팅 기능 추가
 - **가상 피팅 시스템 구축**:
@@ -398,6 +562,18 @@ cd TheFirstTake-backend/thefirsttake
 - Redis 연결 정보
 - AWS S3 설정
 - 외부 API 엔드포인트
+- LLM 서버 설정 (`llm.server.host`, `llm.server.port`)
+
+**필수 환경변수:**
+- `LLM_SERVER_HOST`: LLM 서버 호스트 주소
+- `LLM_SERVER_PORT`: LLM 서버 포트 번호
+- `POSTGRES_ENDPOINT`: PostgreSQL 서버 주소
+- `POSTGRES_USER`: PostgreSQL 사용자명
+- `POSTGRES_PASSWORD`: PostgreSQL 비밀번호
+- `REDIS_ENDPOINT`: Redis 서버 주소
+- `AWS_ACCESS_KEY`: AWS 액세스 키
+- `AWS_SECRET_KEY`: AWS 시크릿 키
+- `FITROOM_API_KEY`: FitRoom API 키
 
 ## 📊 모니터링 & 로깅
 

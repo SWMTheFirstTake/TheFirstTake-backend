@@ -89,8 +89,12 @@ public class ChatRoomManagementService {
      */
     @Transactional(readOnly = true)
     public UserEntity getUserEntityByRoomId(Long roomId) {
+        log.info("getUserEntityByRoomId 호출: roomId={}", roomId);
         ChatRoom chatRoom = getRoomById(roomId);
-        return chatRoom.getUser();
+        log.info("채팅방 조회 완료: chatRoom={}, chatRoom.user={}", chatRoom, chatRoom != null ? chatRoom.getUser() : "null");
+        UserEntity user = chatRoom.getUser();
+        log.info("사용자 엔티티 반환: user={}, userId={}", user, user != null ? user.getId() : "null");
+        return user;
     }
 
     /**

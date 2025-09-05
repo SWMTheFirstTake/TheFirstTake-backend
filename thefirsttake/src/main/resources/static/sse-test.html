@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Expert Stream Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 4px solid #007bff;
+        }
+        .log-entry.status {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+        .log-entry.content {
+            border-left-color: #17a2b8;
+            background: #f8f9ff;
+        }
+        .log-entry.error {
+            border-left-color: #dc3545;
+            background: #fff8f8;
+        }
+        .log-entry.complete {
+            border-left-color: #6f42c1;
+            background: #f8f5ff;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 10px;
+        }
+        .step {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SSE Expert Stream Test</h1>
+        
+        <div id="status" class="status">대기 중...</div>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="userInput">사용자 입력:</label>
+                <input type="text" id="userInput" name="userInput" value="캐주얼한 데일리 룩" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="expertType">전문가 타입:</label>
+                <select id="expertType" name="expertType" required>
+                    <option value="style_analyst">스타일 분석 전문가</option>
+                    <option value="color_expert">컬러 전문가</option>
+                    <option value="fitting_coordinator">피팅 코디네이터</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="roomId">방 ID (숫자):</label>
+                <input type="number" id="roomId" name="roomId" value="1" min="1" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="userProfile">사용자 프로필:</label>
+                <textarea id="userProfile" name="userProfile" rows="3" placeholder="사용자 스타일, 선호도 등을 입력하세요">20대 여성, 미니멀한 스타일 선호, 편안함 중시</textarea>
+            </div>
+            
+            <button type="submit" id="startBtn">테스트 시작</button>
+            <button type="button" id="stopBtn" onclick="stopTest()" disabled>테스트 중지</button>
+        </form>
+        
+        <h3>📊 실시간 로그</h3>
+        <div id="logContainer" class="log-container">
+            <div class="log-entry">테스트를 시작하려면 위의 버튼을 클릭하세요.</div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let isConnected = false;
+
+        document.getElementById('testForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            startTest();
+        });
+
+        function startTest() {
+            const formData = new FormData(document.getElementById('testForm'));
+            const requestData = {
+                user_input: formData.get('userInput'),
+                expert_type: formData.get('expertType'),
+                room_id: formData.get('roomId'),
+                user_profile: formData.get('userProfile')
+            };
+
+            // UI 상태 변경
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('status').className = 'status connecting';
+            document.getElementById('status').textContent = '연결 중...';
+
+            // 로그 초기화
+            document.getElementById('logContainer').innerHTML = '';
+
+            // POST 요청으로 데이터 전송하면서 SSE 응답을 받기
+            const url = '/api/sse-test/expert-stream';
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            }).then(response => {
+                if (response.ok) {
+                    // SSE 응답을 처리
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    document.getElementById('status').className = 'status connected';
+                    document.getElementById('status').textContent = '연결됨 - 데이터 수신 중...';
+                    addLog('연결이 열렸습니다.', 'status');
+                    
+                    function readStream() {
+                        reader.read().then(({ done, value }) => {
+                            if (done) {
+                                console.log('스트림 완료');
+                                return;
+                            }
+                            
+                            const chunk = decoder.decode(value);
+                            const lines = chunk.split('\n');
+                            
+                            lines.forEach(line => {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.substring(6));
+                                        addLog(data, data.type || 'message');
+                                        
+                                        if (data.type === 'complete') {
+                                            document.getElementById('status').className = 'status connected';
+                                            document.getElementById('status').textContent = '완료됨';
+                                            
+                                            // SSE CommonResponse 형식 처리 로그
+                                            if (data.status === 'success') {
+                                                addLog('SSE CommonResponse 형식으로 완료 이벤트 수신', 'complete');
+                                            } else {
+                                                addLog('기존 형식으로 완료 이벤트 수신', 'complete');
+                                            }
+                                            
+                                            stopTest();
+                                        }
+                                    } catch (error) {
+                                        console.error('JSON 파싱 오류:', error);
+                                    }
+                                }
+                            });
+                            
+                            readStream();
+                        }).catch(error => {
+                            console.error('스트림 읽기 오류:', error);
+                            addLog('스트림 읽기 오류: ' + error.message, 'error');
+                        });
+                    }
+                    
+                    readStream();
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            }).catch(error => {
+                console.error('POST 요청 오류:', error);
+                addLog('POST 요청 오류: ' + error.message, 'error');
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '요청 오류';
+            });
+
+            // 연결 상태 업데이트
+            document.getElementById('status').className = 'status connected';
+            document.getElementById('status').textContent = '연결됨 - 데이터 수신 중...';
+            addLog('연결이 열렸습니다.', 'status');
+        }
+
+        function stopTest() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            isConnected = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('status').className = 'status';
+            document.getElementById('status').textContent = '대기 중...';
+        }
+
+        function addLog(data, type) {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            let step = '';
+            let content = '';
+            
+            // CommonResponse 형식 처리
+            if (data.status === 'success' && data.data) {
+                // 새로운 형식: SSE 이벤트 자체가 CommonResponse
+                if (type === 'content') {
+                    content = data.data.message || '';
+                } else {
+                    content = typeof data.data === 'string' ? data.data : JSON.stringify(data.data, null, 2);
+                }
+            } else {
+                // 기존 형식
+                if (typeof data === 'string') {
+                    content = data;
+                } else if (data.data) {
+                    content = typeof data.data === 'string' ? data.data : JSON.stringify(data.data, null, 2);
+                } else {
+                    content = JSON.stringify(data, null, 2);
+                }
+            }
+            
+            logEntry.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span> ${type.toUpperCase()}: ${content}
+            `;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 페이지 언로드 시 연결 해제
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
