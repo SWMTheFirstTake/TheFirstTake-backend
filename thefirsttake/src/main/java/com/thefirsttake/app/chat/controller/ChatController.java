@@ -586,189 +586,6 @@ public class ChatController {
         return CommonResponse.success(agentResponse);
     }
     
-    @Operation(
-            summary = "채팅 에이전트 응답 메시지 수신 (SSE)",
-            description = "SSE(Server-Sent Events)를 통해 해당 채팅방에 대한 AI 에이전트 응답 메시지를 실시간으로 수신합니다. Redis 큐에서 메시지가 있는 경우 즉시 전송하며, 응답이 없을 때까지 연결을 유지합니다.",
-            parameters = {
-                    @Parameter(
-                            name = "roomId",
-                            description = "응답 메시지를 받을 채팅방의 ID",
-                            required = true,
-                            schema = @Schema(type = "integer", format = "int64")
-                    )
-            },
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "SSE 연결 성공",
-                            content = @Content(mediaType = "text/event-stream")
-                    ),
-                    @ApiResponse(
-                            responseCode = "400",
-                            description = "요청 파라미터 오류 (예: roomId 누락)",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "유효하지 않은 roomId 예시",
-                                            summary = "필수 roomId 파라미터가 누락되거나 유효하지 않은 경우",
-                                            value = """
-                            {
-                              "status": "fail",
-                              "message": "잘못된 요청입니다. roomId를 확인해주세요.",
-                              "data": null
-                            }
-                            """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500",
-                            description = "서버 내부 오류",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "서버 오류 예시",
-                                            summary = "예상치 못한 서버 오류 발생",
-                                            value = """
-                        {
-                          "status": "fail",
-                          "message": "메시지 수신 중 오류가 발생했습니다: [오류 메시지]",
-                          "data": null
-                        }
-                        """
-                                    )
-                            )
-                    )
-            }
-    )
-    @GetMapping("/receive/sse")
-    public SseEmitter receiveChatMessageSSE(@RequestParam("roomId") Long roomId, HttpServletRequest httpRequest) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session == null) {
-            session = httpRequest.getSession(true);
-        }
-        
-        SseEmitter emitter = new SseEmitter(300000L); // 5분 타임아웃
-        
-        try {
-            log.info("SSE 채팅 연결 시작: roomId={}, sessionId={}", roomId, session.getId());
-            
-            // 초기 연결 메시지 전송
-            emitter.send(SseEmitter.event()
-                .name("connected")
-                .data("채팅 연결이 설정되었습니다. AI 응답을 기다리는 중..."));
-            
-            // 비동기로 메시지 모니터링 시작
-            CompletableFuture.runAsync(() -> {
-                try {
-                    // 메시지가 있을 때까지 폴링 (SSE로 실시간 전송)
-                    while (!Thread.currentThread().isInterrupted()) {
-                        ChatAgentResponse agentResponse = chatQueueService.processChatQueue(roomId);
-                        
-                        if (agentResponse != null) {
-                            log.info("AI 응답 메시지 수신: roomId={}, agent={}", roomId, agentResponse.getAgentName());
-                            
-                            // 상품 검색 API 호출
-                            Map<String, Object> searchResult = productSearchService.searchProducts(agentResponse.getMessage());
-                            if (searchResult != null) {
-                                // 상품 정보를 Redis에 캐싱
-                                try {
-                                    productCacheService.cacheProductsFromSearchResult(searchResult);
-                                } catch (Exception e) {
-                                    log.warn("상품 정보 캐싱 중 오류 발생: {}", e.getMessage());
-                                }
-                                
-                                // 상품 이미지 URL 및 상품 ID 추출
-                                List<String> productImageUrls = productSearchService.extractProductImageUrls(searchResult);
-                                List<String> productIds = productCacheService.extractProductIds(searchResult);
-                                
-                                // 상품 정보를 products 배열로 구성
-                                if (!productImageUrls.isEmpty() && !productIds.isEmpty()) {
-                                    List<com.thefirsttake.app.chat.dto.response.ProductInfo> products = new java.util.ArrayList<>();
-                                    
-                                    int minSize = Math.min(productImageUrls.size(), productIds.size());
-                                    for (int i = 0; i < minSize; i++) {
-                                        com.thefirsttake.app.chat.dto.response.ProductInfo productInfo = 
-                                            com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
-                                                .productUrl(productImageUrls.get(i))
-                                                .productId(productIds.get(i))
-                                                .build();
-                                        products.add(productInfo);
-                                    }
-                                    
-                                    agentResponse.setProducts(products);
-                                    log.info("상품 정보 {}개 설정: {}", products.size(), products);
-                                }
-                                
-                                // 상품 정보가 있는 경우 DB에 저장
-                                if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
-                                    try {
-                                        UserEntity userEntity = chatRoomManagementService.getUserEntityByRoomId(roomId);
-                                        ChatRoom chatRoom = chatRoomManagementService.getRoomById(roomId);
-                                        chatMessageService.saveAIResponse(userEntity, chatRoom, agentResponse);
-                                        log.info("상품 이미지가 포함된 AI 응답을 데이터베이스에 저장했습니다.");
-                                    } catch (Exception e) {
-                                        log.error("상품 이미지가 포함된 AI 응답 저장 실패: {}", e.getMessage());
-                                    }
-                                }
-                            }
-                            
-                            // SSE를 통해 응답 전송
-                            emitter.send(SseEmitter.event()
-                                .name("message")
-                                .data(agentResponse));
-                            
-                            // 응답 전송 후 연결 종료
-                            emitter.complete();
-                            break;
-                            
-                        } else {
-                            // 응답이 없으면 1초 대기 후 재시도
-                            Thread.sleep(1000);
-                        }
-                    }
-                    
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    log.info("SSE 채팅 연결이 인터럽트되었습니다: roomId={}", roomId);
-                    try {
-                        emitter.send(SseEmitter.event()
-                            .name("error")
-                            .data("연결이 중단되었습니다."));
-                        emitter.complete();
-                    } catch (IOException ex) {
-                        log.error("SSE 에러 메시지 전송 실패", ex);
-                        emitter.completeWithError(ex);
-                    }
-                } catch (Exception e) {
-                    log.error("SSE 채팅 메시지 처리 중 오류 발생: roomId={}", roomId, e);
-                    try {
-                        emitter.send(SseEmitter.event()
-                            .name("error")
-                            .data("메시지 처리 중 오류가 발생했습니다: " + e.getMessage()));
-                        emitter.complete();
-                    } catch (IOException ex) {
-                        log.error("SSE 에러 메시지 전송 실패", ex);
-                        emitter.completeWithError(ex);
-                    }
-                }
-            });
-            
-        } catch (Exception e) {
-            log.error("SSE 채팅 연결 초기화 실패: roomId={}", roomId, e);
-            try {
-                emitter.send(SseEmitter.event()
-                    .name("error")
-                    .data("연결 초기화 중 오류가 발생했습니다: " + e.getMessage()));
-                emitter.complete();
-            } catch (IOException ex) {
-                log.error("SSE 에러 메시지 전송 실패", ex);
-                emitter.completeWithError(ex);
-            }
-        }
-        
-        return emitter;
-    }
 
     @Operation(
             summary = "상품 정보 조회",
@@ -1140,7 +957,7 @@ public class ChatController {
                                                     summary = "실시간 AI 응답 메시지",
                                                     value = """
                                                     event: content
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","agent_id":"style_analyst","agent_name":"스타일 분석가","type":"content","timestamp":1757045028619}}
+                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","type":"content","timestamp":1757045028619}}
                                                     
                                                     """
                                             ),
@@ -1149,7 +966,7 @@ public class ChatController {
                                                     summary = "최종 완료 메시지와 추천 상품",
                                                     value = """
                                                     event: complete
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","agent_id":"style_analyst","agent_name":"스타일 분석가","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
+                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
                                                     
                                                     """
                                             ),
@@ -1527,7 +1344,7 @@ public class ChatController {
                                                     summary = "자동 생성된 방 정보",
                                                     value = """
                                                     event: room
-                                                    data: {"type":"room","data":{"room_id":259},"timestamp":1757045016039}
+                                                    data: {"status":"success","message":"요청 성공","data":{"room_id":259,"type":"room","timestamp":1757045016039}}
                                                     
                                                     """
                                             ),
@@ -1541,7 +1358,7 @@ public class ChatController {
                                                     summary = "실시간 AI 응답 메시지",
                                                     value = """
                                                     event: content
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","agent_id":"style_analyst","agent_name":"스타일 분석가","type":"content","timestamp":1757045028619}}
+                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","type":"content","timestamp":1757045028619}}
                                                     
                                                     """
                                             ),
@@ -1550,7 +1367,7 @@ public class ChatController {
                                                     summary = "최종 완료 메시지와 추천 상품",
                                                     value = """
                                                     event: complete
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","agent_id":"style_analyst","agent_name":"스타일 분석가","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
+                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
                                                     
                                                     """
                                             ),
@@ -1628,14 +1445,14 @@ public class ChatController {
                 chatRoomManagementService.getRoomById(finalRoomId);
             }
 
-            // 연결/방 정보 이벤트 먼저 전송 (항상 내려 일관성 유지)
-            Map<String, Object> roomInfo = new HashMap<>();
-            roomInfo.put("room_id", finalRoomId);
-            Map<String, Object> roomEventPayload = new HashMap<>();
-            roomEventPayload.put("type", "room");
-            roomEventPayload.put("data", roomInfo);
-            roomEventPayload.put("timestamp", System.currentTimeMillis());
-            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(roomEventPayload);
+            // 연결/방 정보 이벤트 먼저 전송 (CommonResponse 형식으로 변경)
+            Map<String, Object> roomData = new HashMap<>();
+            roomData.put("room_id", finalRoomId);
+            roomData.put("type", "room");
+            roomData.put("timestamp", System.currentTimeMillis());
+            
+            CommonResponse roomResponse = CommonResponse.success(roomData);
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(roomResponse);
             emitter.send(SseEmitter.event().name("room").data(json));
 
         } catch (Exception e) {

@@ -64,8 +64,8 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 💬 AI 기반 채팅 인터페이스
 - **LLM 기반 질의응답**: 자연어로 패션 상담 및 스타일 추천
 - **실시간 메시지 수신**: 
-  - **폴링 방식**: 기존 `/chat/receive` API를 통한 상태 조회
-  - **SSE 방식**: `/chat/receive/sse` API를 통한 실시간 메시지 수신
+  - **폴링 방식**: 기존 `/chat/receive` API를 통한 상태 조회  
+  - **스트림 방식**: `/api/chat/rooms/{roomId}/messages/stream` API를 통한 실시간 메시지 수신
 - **다중 에이전트 시스템**: 
   - 스타일 분석가 (Style Analyst)
   - 트렌드 전문가 (Trend Expert) 
@@ -129,7 +129,6 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 채팅 관련
 - `POST /api/chat/send` - 메시지 전송 및 큐 저장
 - `GET /api/chat/receive` - AI 응답 메시지 수신 (폴링)
-- `GET /api/chat/receive/sse` - **SSE를 통한 AI 응답 메시지 실시간 수신**
 - `GET /api/chat/rooms/{roomId}/messages/stream` - **스트림 API: 특정 방에서 실시간 AI 응답 수신**
 - `GET /api/chat/rooms/messages/stream` - **스트림 API: 자동 방 생성 및 실시간 AI 응답 수신**
 - `GET /api/chat/rooms/history` - 채팅방 히스토리 조회
@@ -171,40 +170,6 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 }
 ```
 
-#### SSE를 통한 AI 응답 (receive/sse API)
-**응답 형식**: `text/event-stream` (Server-Sent Events)
-
-**이벤트 타입별 메시지**:
-
-1. **연결 성공** (`connected` 이벤트):
-```
-event: connected
-data: "채팅 연결이 설정되었습니다. AI 응답을 기다리는 중..."
-```
-
-2. **AI 응답 메시지** (`message` 이벤트):
-```
-event: message
-data: {
-  "message": "소개팅에 어울리는 스타일을 분석해보겠습니다...",
-  "order": 1,
-  "agent_id": "style_analyst",
-  "agent_name": "스타일 분석가",
-  "agent_role": "체형분석과 핏감을 중심으로 추천해드려요!",
-  "products": [
-    {
-      "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg",
-      "product_id": "4227290"
-    }
-  ]
-}
-```
-
-3. **에러** (`error` 이벤트):
-```
-event: error
-data: "메시지 처리 중 오류가 발생했습니다: [에러 메시지]"
-```
 
 #### 스트림 API 응답 (rooms/{roomId}/messages/stream, rooms/messages/stream)
 **응답 형식**: `text/event-stream` (Server-Sent Events)
@@ -221,11 +186,13 @@ data: "SSE 연결 성공"
 ```
 event: room
 data: {
-  "type": "room",
+  "status": "success",
+  "message": "요청 성공",
   "data": {
-    "room_id": 259
-  },
-  "timestamp": 1757045016039
+    "room_id": 259,
+    "type": "room",
+    "timestamp": 1757045016039
+  }
 }
 ```
 
@@ -236,9 +203,9 @@ data: {
   "status": "success",
   "message": "요청 성공",
   "data": {
-    "message": "소개팅에 어울리는 스타일을 분석해보겠습니다...",
     "agent_id": "style_analyst",
     "agent_name": "스타일 분석가",
+    "message": "소개팅에 어울리는 스타일을 분석해보겠습니다...",
     "type": "content",
     "timestamp": 1757045028619
   }
@@ -252,9 +219,9 @@ data: {
   "status": "success",
   "message": "요청 성공",
   "data": {
-    "message": "브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...",
     "agent_id": "style_analyst",
     "agent_name": "스타일 분석가",
+    "message": "브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...",
     "products": [
       {
         "product_url": "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg",
@@ -484,8 +451,9 @@ SSE 이벤트 전송 (connect, content, complete, error)
   - 실시간으로 AI 응답 메시지를 클라이언트에 전송
   - 폴링 방식 대비 사용자 경험 향상 및 서버 부하 감소
   - 이벤트 기반 메시지 전송으로 즉각적인 응답 제공
-- **새로운 채팅 SSE API 엔드포인트**:
-  - `GET /api/chat/receive/sse` - SSE를 통한 AI 응답 메시지 실시간 수신
+- **새로운 스트림 API 엔드포인트**:
+  - `GET /api/chat/rooms/{roomId}/messages/stream` - 특정 방에서 실시간 AI 응답 수신
+  - `GET /api/chat/rooms/messages/stream` - 자동 방 생성 및 실시간 AI 응답 수신
 - **클라이언트 테스트 도구**:
   - `chat-sse-test.html` - 채팅 SSE 기능을 테스트할 수 있는 웹 인터페이스 제공
   - 실시간 메시지 수신 및 상품 이미지 표시 기능
