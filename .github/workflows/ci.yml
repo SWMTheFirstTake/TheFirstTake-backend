@@ -333,10 +333,9 @@ jobs:
     - name: Wait for service stability
       run: |
         echo "⏳ Waiting for service to stabilize..."
-        aws ecs wait services-stable \
-          --cluster ${{ env.ECS_CLUSTER }} \
-          --services ${{ secrets.ECS_SERVICE_BACKEND }}
-        
+        CLUSTER_NAME="the-first-take-cluster"
+        SERVICE_NAME="thefirsttake-backend-service-vegat2du"
+        aws ecs wait services-stable --cluster "${CLUSTER_NAME}" --services "${SERVICE_NAME}"
         echo "✅ Service deployment completed!"
 
   health-check:
