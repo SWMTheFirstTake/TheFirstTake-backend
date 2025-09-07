@@ -327,7 +327,7 @@ jobs:
         echo "🚀 Updating ECS service..."
         SERVICE_NAME="thefirsttake-backend-service-vegat2du"
         TASK_DEFINITION="${{ steps.register-task-def.outputs.task-def-arn }}"
-        CLUSTER_NAME="${{ env.ECS_CLUSTER }}"
+        CLUSTER_NAME="the-first-take-cluster"
         aws ecs update-service --cluster "${CLUSTER_NAME}" --service "${SERVICE_NAME}" --task-definition "${TASK_DEFINITION}" --force-new-deployment
 
     - name: Wait for service stability
