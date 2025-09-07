@@ -327,11 +327,7 @@ jobs:
         TASK_DEFINITION: ${{ steps.register-task-def.outputs.task-def-arn }}
       run: |
         echo "🚀 Updating ECS service..."
-        aws ecs update-service \
-          --cluster ${{ env.ECS_CLUSTER }} \
-          --service "$SERVICE_NAME" \
-          --task-definition "$TASK_DEFINITION" \
-          --force-new-deployment
+        aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service "$SERVICE_NAME" --task-definition "$TASK_DEFINITION" --force-new-deployment
 
     - name: Wait for service stability
       run: |
