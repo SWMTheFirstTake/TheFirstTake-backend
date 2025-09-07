@@ -323,7 +323,7 @@ jobs:
         echo "Length of service name: ${#SERVICE_NAME}"
     - name: Update ECS Backend Service
       env:
-        SERVICE_NAME: thefirsttake-backend-service-vegat2du
+        SERVICE_NAME: "thefirsttake-backend-service-vegat2du"
         TASK_DEFINITION: ${{ steps.register-task-def.outputs.task-def-arn }}
       run: |
         echo "🚀 Updating ECS service..."
