@@ -326,7 +326,7 @@ jobs:
         echo "🚀 Updating ECS service..."
         aws ecs update-service \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --service ${{ secrets.ECS_SERVICE_BACKEND }} \
+          --service thefirsttake-backend-service-vegat2du \
           --task-definition ${{ steps.register-task-def.outputs.task-def-arn }} \
           --force-new-deployment
 
