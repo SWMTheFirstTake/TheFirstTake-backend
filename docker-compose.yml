@@ -1,0 +1,49 @@
+services:
+  # Spring Boot Application
+  app:
+    build: .
+    container_name: thefirsttake-app
+    ports:
+      - "8000:8000"
+    environment:
+      # Database Configuration
+      - POSTGRES_ENDPOINT=${POSTGRES_ENDPOINT:-localhost}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres123}
+      
+      # Redis Configuration
+      - REDIS_ENDPOINT=${REDIS_ENDPOINT:-localhost}
+      
+      # LLM Server Configuration
+      - LLM_SERVER_HOST=${LLM_SERVER_HOST:-localhost}
+      - LLM_SERVER_PORT=${LLM_SERVER_PORT:-6020}
+      
+      # AI Server Configuration
+      - AI_SERVER_HOST=${AI_SERVER_HOST:-localhost}
+      - AI_SERVER_PORT=${AI_SERVER_PORT:-8080}
+      
+      # AWS Configuration
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      
+      # FitRoom API Configuration
+      - FITROOM_API_KEY=${FITROOM_API_KEY}
+      
+      # JWT Secret
+      - JWT_SECRET=${JWT_SECRET:-X9p_eTqN7_vF3_LmPz1_tUcRg_YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111}
+      
+      # Spring Profile
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-default}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - thefirsttake-network
+
+networks:
+  thefirsttake-network:
+    driver: bridge

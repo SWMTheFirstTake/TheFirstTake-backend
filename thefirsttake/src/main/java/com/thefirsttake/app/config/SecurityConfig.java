@@ -31,6 +31,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults()) // CorsConfigurationSource 빈을 사용하게 함
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/**").permitAll()
                         .anyRequest().authenticated()
                 );
@@ -48,7 +49,8 @@ public class SecurityConfig {
                 "http://172.16.101.234:3000",
                 "http://3.36.38.106:3000",
                 "http://the-first-take.com",
-                "https://the-first-take.com"       // ✅ HTTPS 도메인 추가!
+                "https://the-first-take.com",      // ✅ HTTPS 도메인 추가!
+                "https://the-second-take.com"      // ✅ the-second-take.com 도메인 추가!
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
