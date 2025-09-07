@@ -315,7 +315,12 @@ jobs:
         
         echo "✅ New task definition: $NEW_TASK_DEF_ARN"
         echo "task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
-
+    - name: Debug ECS Variables
+      run: |
+        echo "🔍 Debugging ECS configuration..."
+        echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
+        echo "ECS_SERVICE_BACKEND: '${{ secrets.ECS_SERVICE_BACKEND }}'"
+        echo "Length of service name: ${#SERVICE_NAME}"
     - name: Update ECS Backend Service
       run: |
         echo "🚀 Updating ECS service..."
