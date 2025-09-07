@@ -319,12 +319,19 @@ jobs:
       run: |
         echo "🔍 Debugging ECS configuration..."
         echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
-        echo "ECS_SERVICE_BACKEND: '${{ secrets.ECS_SERVICE_BACKEND }}'"
+        echo "ECS_SERVICE_BACKEND: 'thefirsttake-backend-service-vegat2du'"
         echo "Length of service name: ${#SERVICE_NAME}"
     - name: Update ECS Backend Service
+      env:
+        SERVICE_NAME: thefirsttake-backend-service-vegat2du
+        TASK_DEFINITION: ${{ steps.register-task-def.outputs.task-def-arn }}
       run: |
         echo "🚀 Updating ECS service..."
-        aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service "thefirsttake-backend-service-vegat2du" --task-definition ${{ steps.register-task-def.outputs.task-def-arn }} --force-new-deployment
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service "$SERVICE_NAME" \
+          --task-definition "$TASK_DEFINITION" \
+          --force-new-deployment
 
     - name: Wait for service stability
       run: |
