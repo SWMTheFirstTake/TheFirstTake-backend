@@ -48,8 +48,7 @@ jwt:
   secret: "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111"
 llm:
   server:
-    host: ${LLM_SERVER_HOST}
-    port: ${LLM_SERVER_PORT}
+    url: ${LLM_SERVER_URL}
 ai:
   server:
     host: ${AI_SERVER_HOST}

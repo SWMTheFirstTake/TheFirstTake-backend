@@ -16,8 +16,7 @@ jobs:
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
-      LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
-      LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+      LLM_SERVER_URL: ${{ secrets.LLM_SERVER_URL }}
       AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
       AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
@@ -55,8 +54,7 @@ jobs:
       SERVER_IP: ${{ secrets.SERVER_IP }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-      LLM_SERVER_HOST: ${{ secrets.LLM_SERVER_HOST }}
-      LLM_SERVER_PORT: ${{ secrets.LLM_SERVER_PORT }}
+      LLM_SERVER_URL: ${{ secrets.LLM_SERVER_URL }}
       AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
       AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -134,8 +132,7 @@ jobs:
             echo 'Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="LLM_SERVER_HOST=${{ secrets.LLM_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="LLM_SERVER_PORT=${{ secrets.LLM_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="LLM_SERVER_URL=${{ secrets.LLM_SERVER_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service

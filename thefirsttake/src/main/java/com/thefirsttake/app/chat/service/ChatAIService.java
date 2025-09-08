@@ -158,11 +158,8 @@ import java.util.*;
 public class ChatAIService {
     private final RestTemplate restTemplate;
 
-    @Value("${llm.server.host}")
-    private String llmServerHost;
-
-    @Value("${llm.server.port}")
-    private String llmServerPort;
+    @Value("${llm.server.url}")
+    private String llmServerUrl;
 
     /**
      * 단일 전문가 분석 결과 반환
@@ -170,8 +167,7 @@ public class ChatAIService {
     public Map<String, Object> getExpertSingleResult(String userInput, Long roomId, ChatAgentType agent) {
         try {
             Map<String, Object> requestMap = buildExpertSingleRequest(userInput, roomId, agent);
-            // String fastApiUrl = "http://"+"localhost"+":"+llmServerPort+"/api/expert/single";
-            String fastApiUrl = "http://"+llmServerHost+":"+llmServerPort+"/llm/api/expert/single";
+            String fastApiUrl = llmServerUrl + "/llm/api/expert/single";
             
             ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
             CommonResponse body = response.getBody();
@@ -200,7 +196,7 @@ public class ChatAIService {
     public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId) {
         try {
             Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId);
-            String fastApiUrl = "http://localhost:6020/llm/api/expert/chain";
+            String fastApiUrl = llmServerUrl + "/llm/api/expert/chain";
 
             ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
             CommonResponse body = response.getBody();

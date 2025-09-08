@@ -65,11 +65,8 @@ public class ChatController {
     private final ProductCacheService productCacheService;
     private final RestTemplate restTemplate;
     
-    @Value("${llm.server.host}")
-    private String llmServerHost;
-    
-    @Value("${llm.server.port}")
-    private String llmServerPort;
+    @Value("${llm.server.url}")
+    private String llmServerUrl;
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -1103,7 +1100,7 @@ public class ChatController {
                 }
                 
                 // 외부 스트리밍 API 호출 준비
-                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/llm/api/expert/single/stream";
+                final String externalApiUrl = llmServerUrl + "/llm/api/expert/single/stream";
 
                 // 항상 전체 전문가 실행
                 java.util.List<String> expertList = new java.util.ArrayList<>();
@@ -1521,7 +1518,7 @@ public class ChatController {
                     log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", resolvedRoomId, finalSession.getId(), e.getMessage(), e);
                 }
                 
-                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/llm/api/expert/single/stream";
+                final String externalApiUrl = llmServerUrl + "/llm/api/expert/single/stream";
 
                 java.util.List<String> expertList = new java.util.ArrayList<>();
                 expertList.add("style_analyst");
