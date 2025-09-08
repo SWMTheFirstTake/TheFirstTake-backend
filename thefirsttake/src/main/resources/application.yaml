@@ -48,7 +48,9 @@ jwt:
   secret: "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111"
 llm:
   server:
-    url: ${LLM_SERVER_URL}
+    expert-single-url: ${LLM_SERVER_EXPERT_SINGLE_URL}
+    expert-chain-url: ${LLM_SERVER_EXPERT_CHAIN_URL}
+    expert-stream-url: ${LLM_SERVER_EXPERT_STREAM_URL}
 ai:
   server:
     host: ${AI_SERVER_HOST}

@@ -26,8 +26,8 @@ public class SseTestController {
     private final RestTemplate restTemplate;
     private final ExecutorService executorService;
     
-    @Value("${llm.server.url}")
-    private String llmServerUrl;
+    @Value("${llm.server.expert-stream-url}")
+    private String llmExpertStreamUrl;
 
     public SseTestController(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
@@ -67,7 +67,7 @@ public class SseTestController {
                 sendSseMessage(emitter, "status", "외부 API 호출 중...", 3);
                 
                 // 외부 API 호출 (localhost:6020)
-                String externalApiUrl = llmServerUrl + "/llm/api/expert/single/stream";
+                String externalApiUrl = llmExpertStreamUrl;
                 
                 // 요청 데이터 준비 (FastAPI 요구사항에 맞춤)
                 Map<String, Object> expertRequest = new HashMap<>();
