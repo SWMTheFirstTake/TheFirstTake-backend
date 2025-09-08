@@ -1,371 +1,373 @@
-name: Spring Boot CI/CD
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-
-    env:
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
-      LLM_SERVER_EXPERT_SINGLE_URL: ${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}
-      LLM_SERVER_EXPERT_CHAIN_URL: ${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}
-      LLM_SERVER_EXPERT_STREAM_URL: ${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}
-      AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
-      AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
-      REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
-      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
-      AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
-      FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./thefirsttake/gradlew
-
-      - name: Build
-        run: cd thefirsttake && ./gradlew clean build
-
-      - name: Upload build artifact for deployment
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-jar
-          path: thefirsttake/build/libs/*.jar
-
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-
-    env:
-      SERVER_IP: ${{ secrets.SERVER_IP }}
-      SERVER_USER: ${{ secrets.SERVER_USER }}
-      SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-      LLM_SERVER_EXPERT_SINGLE_URL: ${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}
-      LLM_SERVER_EXPERT_CHAIN_URL: ${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}
-      LLM_SERVER_EXPERT_STREAM_URL: ${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}
-      AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
-      AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
-      REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
-      AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
-      AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
-      FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
-
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: app-jar
-          path: ./deploy
-
-      - name: Copy jar to server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ env.SERVER_IP }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ env.SERVER_SSH_KEY }}
-          source: "./deploy/*.jar"
-          target: "/home/${{ env.SERVER_USER }}/app/"
-
-      - name: Restart app on server
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ env.SERVER_IP }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ env.SERVER_SSH_KEY }}
-          script: |
-            # 애플리케이션 JAR 파일의 이름을 찾습니다.
-            # -plain.jar 파일을 제외하고 실행 가능한 JAR 파일을 찾습니다.
-            JAR_NAME=$(ls /home/${{ env.SERVER_USER }}/app/deploy/*.jar | grep -v "plain.jar" | head -n 1)
-            echo "Found JAR file: $JAR_NAME"
-            
-            # JAR 파일이 존재하는지 확인
-            if [ ! -f "$JAR_NAME" ]; then
-                echo "Error: JAR file not found at $JAR_NAME"
-                exit 1
-            fi
-            
-            # JAR 파일명만 추출 (경로 제거)
-            JAR_FILENAME=$(basename "$JAR_NAME")
-            echo "JAR filename: $JAR_FILENAME"
-            
-            # 디렉토리의 모든 JAR 파일 목록을 확인합니다.
-            echo "=== All JAR files in deploy directory ==="
-            ls -la /home/${{ env.SERVER_USER }}/app/deploy/*.jar
-            
-                        # 기존 서비스가 있다면 중지합니다.
-            # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
-            sudo systemctl stop thefirsttake.service || true
-            
-            # 기존 서비스 파일을 완전히 삭제하고 새로 생성합니다.
-            sudo rm -f /etc/systemd/system/thefirsttake.service
-            
-            # systemd 서비스 파일을 새로 생성합니다.
-            echo '[Unit]' | sudo tee /etc/systemd/system/thefirsttake.service
-            echo 'Description=TheFirstTake Spring Boot Application' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'After=network.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '[Service]' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Type=simple' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'User=${{ env.SERVER_USER }}' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'WorkingDirectory=/home/${{ env.SERVER_USER }}/app' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo "ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/$JAR_FILENAME" | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Restart=always' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '# 환경 변수 설정' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="LLM_SERVER_EXPERT_SINGLE_URL=${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="LLM_SERVER_EXPERT_CHAIN_URL=${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="LLM_SERVER_EXPERT_STREAM_URL=${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'Environment="FITROOM_API_KEY=${{ secrets.FITROOM_API_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
-            echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
-
-            # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
-            sudo systemctl daemon-reload
-            
-            # 서비스를 활성화하고 시작합니다.
-            # 'enable'은 시스템 부팅 시 서비스가 자동으로 시작되도록 설정합니다.
-            # 'start'는 서비스를 즉시 시작합니다.
-            sudo systemctl enable thefirsttake.service
-            
-            # 서비스 시작 전에 생성된 서비스 파일 내용을 확인합니다.
-            echo "=== Generated Service File Content ==="
-            sudo cat /etc/systemd/system/thefirsttake.service
-            
-            sudo systemctl start thefirsttake.service
-            
-            # 서비스 상태를 확인하여 성공적으로 시작되었는지 확인합니다.
-            # --no-pager 옵션은 출력이 페이지네이션되지 않도록 합니다.
-            # 이 명령은 서비스가 시작될 때까지 기다릴 수 있습니다.
-            sudo systemctl status thefirsttake.service --no-pager
-            
-            # 서비스 로그를 확인하여 오류 원인을 파악합니다.
-            echo "=== Service Logs ==="
-            sudo journalctl -u thefirsttake.service --no-pager -n 50
-            
-            # 서비스가 실패한 경우 상세 로그 확인
-            if ! sudo systemctl is-active --quiet thefirsttake.service; then
-                echo "=== Service Failed - Checking Detailed Logs ==="
-                sudo journalctl -u thefirsttake.service --no-pager -n 100
-                echo "=== Generated Service File ==="
-                sudo cat /etc/systemd/system/thefirsttake.service
-                exit 1
-            fi
-
-# name: Deploy to ECS
+# name: Spring Boot CI/CD
 
 # on:
 #   push:
-#     branches: [ main ]
+#     branches:
+#       - main
 #   pull_request:
-#     branches: [ main ]
-
-# env:
-#   AWS_REGION: ${{ secrets.AWS_REGION }}
-#   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-#   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+#     branches:
+#       - main
 
 # jobs:
 #   build-and-test:
 #     runs-on: ubuntu-latest
-    
+
+#     env:
+#       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+#       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+#       POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
+#       LLM_SERVER_EXPERT_SINGLE_URL: ${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}
+#       LLM_SERVER_EXPERT_CHAIN_URL: ${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}
+#       LLM_SERVER_EXPERT_STREAM_URL: ${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}
+#       AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+#       AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
+#       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+#       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+#       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
+#       FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
+
 #     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
+#       - name: Checkout code
+#         uses: actions/checkout@v3
 
-#     - name: Set up JDK 21
-#       uses: actions/setup-java@v4
-#       with:
-#         java-version: '21'
-#         distribution: 'temurin'
+#       - name: Set up JDK 21
+#         uses: actions/setup-java@v3
+#         with:
+#           java-version: '21'
+#           distribution: 'temurin'
 
-#     - name: Grant execute permission for gradlew
-#       run: chmod +x ./thefirsttake/gradlew
+#       - name: Grant execute permission for gradlew
+#         run: chmod +x ./thefirsttake/gradlew
 
-#     - name: Build Spring Boot Application
-#       run: |
-#         cd thefirsttake
-#         ./gradlew clean build -x test
+#       - name: Build
+#         run: cd thefirsttake && ./gradlew clean build
 
-#     - name: Upload build artifact
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: spring-boot-jar
-#         path: thefirsttake/build/libs/*.jar
+#       - name: Upload build artifact for deployment
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: app-jar
+#           path: thefirsttake/build/libs/*.jar
 
-#   deploy-backend:
+#   deploy:
 #     needs: build-and-test
 #     runs-on: ubuntu-latest
-#     if: github.ref == 'refs/heads/main'
-    
+
+#     env:
+#       SERVER_IP: ${{ secrets.SERVER_IP }}
+#       SERVER_USER: ${{ secrets.SERVER_USER }}
+#       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+#       LLM_SERVER_EXPERT_SINGLE_URL: ${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}
+#       LLM_SERVER_EXPERT_CHAIN_URL: ${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}
+#       LLM_SERVER_EXPERT_STREAM_URL: ${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}
+#       AI_SERVER_HOST: ${{ secrets.AI_SERVER_HOST }}
+#       AI_SERVER_PORT: ${{ secrets.AI_SERVER_PORT }}
+#       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+#       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+#       POSTGRES_ENDPOINT: ${{ secrets.POSTGRES_ENDPOINT }}
+#       REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+#       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
+#       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
+#       FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
+
 #     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
+#       - name: Download build artifact
+#         uses: actions/download-artifact@v4
+#         with:
+#           name: app-jar
+#           path: ./deploy
 
-#     - name: Download build artifact
-#       uses: actions/download-artifact@v4
-#       with:
-#         name: spring-boot-jar
-#         path: thefirsttake/build/libs/
+#       - name: Copy jar to server
+#         uses: appleboy/scp-action@v0.1.4
+#         with:
+#           host: ${{ env.SERVER_IP }}
+#           username: ${{ env.SERVER_USER }}
+#           key: ${{ env.SERVER_SSH_KEY }}
+#           source: "./deploy/*.jar"
+#           target: "/home/${{ env.SERVER_USER }}/app/"
 
-#     - name: Configure AWS credentials
-#       uses: aws-actions/configure-aws-credentials@v4
-#       with:
-#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         aws-region: ${{ env.AWS_REGION }}
+#       - name: Restart app on server
+#         uses: appleboy/ssh-action@v0.1.5
+#         with:
+#           host: ${{ env.SERVER_IP }}
+#           username: ${{ env.SERVER_USER }}
+#           key: ${{ env.SERVER_SSH_KEY }}
+#           script: |
+#             # 애플리케이션 JAR 파일의 이름을 찾습니다.
+#             # -plain.jar 파일을 제외하고 실행 가능한 JAR 파일을 찾습니다.
+#             JAR_NAME=$(ls /home/${{ env.SERVER_USER }}/app/deploy/*.jar | grep -v "plain.jar" | head -n 1)
+#             echo "Found JAR file: $JAR_NAME"
+            
+#             # JAR 파일이 존재하는지 확인
+#             if [ ! -f "$JAR_NAME" ]; then
+#                 echo "Error: JAR file not found at $JAR_NAME"
+#                 exit 1
+#             fi
+            
+#             # JAR 파일명만 추출 (경로 제거)
+#             JAR_FILENAME=$(basename "$JAR_NAME")
+#             echo "JAR filename: $JAR_FILENAME"
+            
+#             # 디렉토리의 모든 JAR 파일 목록을 확인합니다.
+#             echo "=== All JAR files in deploy directory ==="
+#             ls -la /home/${{ env.SERVER_USER }}/app/deploy/*.jar
+            
+#                         # 기존 서비스가 있다면 중지합니다.
+#             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
+#             sudo systemctl stop thefirsttake.service || true
+            
+#             # 기존 서비스 파일을 완전히 삭제하고 새로 생성합니다.
+#             sudo rm -f /etc/systemd/system/thefirsttake.service
+            
+#             # systemd 서비스 파일을 새로 생성합니다.
+#             echo '[Unit]' | sudo tee /etc/systemd/system/thefirsttake.service
+#             echo 'Description=TheFirstTake Spring Boot Application' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'After=network.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '[Service]' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Type=simple' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'User=${{ env.SERVER_USER }}' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'WorkingDirectory=/home/${{ env.SERVER_USER }}/app' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo "ExecStart=/usr/bin/java -jar /home/${{ env.SERVER_USER }}/app/deploy/$JAR_FILENAME" | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Restart=always' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '# 환경 변수 설정' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://${{ secrets.POSTGRES_ENDPOINT }}:5432/postgres?sslmode=require"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="LLM_SERVER_EXPERT_SINGLE_URL=${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="LLM_SERVER_EXPERT_CHAIN_URL=${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="LLM_SERVER_EXPERT_STREAM_URL=${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="AI_SERVER_HOST=${{ secrets.AI_SERVER_HOST }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="AI_SERVER_PORT=${{ secrets.AI_SERVER_PORT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="REDIS_ENDPOINT=${{ secrets.REDIS_ENDPOINT }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'Environment="FITROOM_API_KEY=${{ secrets.FITROOM_API_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
+#             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
 
-#     - name: Login to Amazon ECR
-#       id: login-ecr
-#       uses: aws-actions/amazon-ecr-login@v2
+#             # systemd 데몬을 리로드하여 새로운 서비스 파일을 인식하게 합니다.
+#             sudo systemctl daemon-reload
+            
+#             # 서비스를 활성화하고 시작합니다.
+#             # 'enable'은 시스템 부팅 시 서비스가 자동으로 시작되도록 설정합니다.
+#             # 'start'는 서비스를 즉시 시작합니다.
+#             sudo systemctl enable thefirsttake.service
+            
+#             # 서비스 시작 전에 생성된 서비스 파일 내용을 확인합니다.
+#             echo "=== Generated Service File Content ==="
+#             sudo cat /etc/systemd/system/thefirsttake.service
+            
+#             sudo systemctl start thefirsttake.service
+            
+#             # 서비스 상태를 확인하여 성공적으로 시작되었는지 확인합니다.
+#             # --no-pager 옵션은 출력이 페이지네이션되지 않도록 합니다.
+#             # 이 명령은 서비스가 시작될 때까지 기다릴 수 있습니다.
+#             sudo systemctl status thefirsttake.service --no-pager
+            
+#             # 서비스 로그를 확인하여 오류 원인을 파악합니다.
+#             echo "=== Service Logs ==="
+#             sudo journalctl -u thefirsttake.service --no-pager -n 50
+            
+#             # 서비스가 실패한 경우 상세 로그 확인
+#             if ! sudo systemctl is-active --quiet thefirsttake.service; then
+#                 echo "=== Service Failed - Checking Detailed Logs ==="
+#                 sudo journalctl -u thefirsttake.service --no-pager -n 100
+#                 echo "=== Generated Service File ==="
+#                 sudo cat /etc/systemd/system/thefirsttake.service
+#                 exit 1
+#             fi
 
-#     - name: Build, tag, and push Backend image
-#       id: build-backend
-#       env:
-#         ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_BACKEND }}
-#         IMAGE_TAG: ${{ github.sha }}
-#       run: |
-#         echo "🔨 Building Docker image..."
-#         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./thefirsttake
-        
-#         echo "📤 Pushing image to ECR..."
-#         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        
-#         echo "✅ Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-#         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+name: Deploy to ECS
 
-#     - name: Download current task definition
-#       run: |
-#         echo "📋 Downloading current task definition..."
-#         aws ecs describe-task-definition \
-#           --task-definition thefirsttake-backend \
-#           --query 'taskDefinition' > task-definition.json
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-#     - name: Update task definition with new image and environment variables
-#       id: task-def
-#       run: |
-#         echo "🔄 Updating task definition..."
-        
-#         # 새로운 이미지로 업데이트하고 환경변수 설정
-#         jq --arg IMAGE "${{ steps.build-backend.outputs.image }}" \
-#            --arg POSTGRES_USER "${{ secrets.POSTGRES_USER }}" \
-#            --arg POSTGRES_PASSWORD "${{ secrets.POSTGRES_PASSWORD }}" \
-#            --arg POSTGRES_ENDPOINT "${{ secrets.POSTGRES_ENDPOINT }}" \
-#            --arg LLM_SERVER_HOST "${{ secrets.LLM_SERVER_HOST }}" \
-#            --arg LLM_SERVER_PORT "${{ secrets.LLM_SERVER_PORT }}" \
-#            --arg AI_SERVER_HOST "${{ secrets.AI_SERVER_HOST }}" \
-#            --arg AI_SERVER_PORT "${{ secrets.AI_SERVER_PORT }}" \
-#            --arg REDIS_ENDPOINT "${{ secrets.REDIS_ENDPOINT }}" \
-#            --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY }}" \
-#            --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_KEY }}" \
-#            --arg FITROOM_API_KEY "${{ secrets.FITROOM_API_KEY }}" \
-#            '
-#            .containerDefinitions[0].image = $IMAGE |
-#            .containerDefinitions[0].environment = [
-#              {"name": "SPRING_DATASOURCE_URL", "value": ("jdbc:postgresql://" + $POSTGRES_ENDPOINT + ":5432/postgres?sslmode=require")},
-#              {"name": "SPRING_DATASOURCE_USERNAME", "value": $POSTGRES_USER},
-#              {"name": "SPRING_DATASOURCE_PASSWORD", "value": $POSTGRES_PASSWORD},
-#              {"name": "SPRING_DATASOURCE_DRIVER_CLASS_NAME", "value": "org.postgresql.Driver"},
-#              {"name": "LLM_SERVER_HOST", "value": $LLM_SERVER_HOST},
-#              {"name": "LLM_SERVER_PORT", "value": $LLM_SERVER_PORT},
-#              {"name": "AI_SERVER_HOST", "value": $AI_SERVER_HOST},
-#              {"name": "AI_SERVER_PORT", "value": $AI_SERVER_PORT},
-#              {"name": "REDIS_ENDPOINT", "value": $REDIS_ENDPOINT},
-#              {"name": "AWS_ACCESS_KEY", "value": $AWS_ACCESS_KEY},
-#              {"name": "AWS_SECRET_KEY", "value": $AWS_SECRET_KEY},
-#              {"name": "FITROOM_API_KEY", "value": $FITROOM_API_KEY}
-#            ] |
-#            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)
-#            ' task-definition.json > new-task-definition.json
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
 
-#     - name: Register new task definition
-#       id: register-task-def
-#       run: |
-#         echo "📝 Registering new task definition..."
-#         NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-#           --cli-input-json file://new-task-definition.json \
-#           --query 'taskDefinition.taskDefinitionArn' \
-#           --output text)
-        
-#         echo "✅ New task definition: $NEW_TASK_DEF_ARN"
-#         echo "task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
-#     - name: Debug ECS Variables
-#       run: |
-#         echo "🔍 Debugging ECS configuration..."
-#         echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
-#         echo "ECS_SERVICE_BACKEND: 'thefirsttake-backend-service-vegat2du'"
-#         echo "Length of service name: ${ECS_SERVICE_BACKEND}"
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
     
-#     - name: Update ECS Backend Service
-#       run: |
-#         echo "🚀 Updating ECS service..."
-#         SERVICE_NAME="thefirsttake-backend-service-vegat2du"
-#         TASK_DEFINITION="${{ steps.register-task-def.outputs.task-def-arn }}"
-#         CLUSTER_NAME="the-first-take-cluster"
-#         aws ecs update-service --cluster "${CLUSTER_NAME}" --service "${SERVICE_NAME}" --task-definition "${TASK_DEFINITION}" --force-new-deployment
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-#     - name: Wait for service stability
-#       run: |
-#         echo "⏳ Waiting for service to stabilize..."
-#         CLUSTER_NAME="the-first-take-cluster"
-#         SERVICE_NAME="thefirsttake-backend-service-vegat2du"
-#         aws ecs wait services-stable --cluster "${CLUSTER_NAME}" --services "${SERVICE_NAME}"
-#         echo "✅ Service deployment completed!"
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
 
-#   health-check:
-#     needs: deploy-backend
-#     runs-on: ubuntu-latest
-#     if: github.ref == 'refs/heads/main'
+    - name: Grant execute permission for gradlew
+      run: chmod +x ./thefirsttake/gradlew
+
+    - name: Build Spring Boot Application
+      run: |
+        cd thefirsttake
+        ./gradlew clean build -x test
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: spring-boot-jar
+        path: thefirsttake/build/libs/*.jar
+
+  deploy-backend:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     
-#     steps:
-#     - name: Health Check
-#       run: |
-#         echo "🔍 Performing health check..."
-        
-#         for i in {1..30}; do
-#           if curl -f -s https://the-second-take.com/actuator/health; then
-#             echo "✅ Health check passed!"
-#             exit 0
-#           fi
-#           echo "Waiting for service to be healthy... ($i/30)"
-#           sleep 10
-#         done
-        
-#         echo "❌ Health check failed after 5 minutes!"
-#         exit 1
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-#     - name: Deployment Success Notification
-#       if: success()
-#       run: |
-#         echo "🎉 Deployment successful!"
-#         echo "🌐 Service URL: https://the-second-take.com"
-#         echo "🏥 Health Check: https://the-second-take.com/actuator/health"
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: spring-boot-jar
+        path: thefirsttake/build/libs/
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push Backend image
+      id: build-backend
+      env:
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_BACKEND }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "🔨 Building Docker image..."
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./thefirsttake
+        
+        echo "📤 Pushing image to ECR..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        
+        echo "✅ Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Download current task definition
+      run: |
+        echo "📋 Downloading current task definition..."
+        aws ecs describe-task-definition \
+          --task-definition thefirsttake-backend \
+          --query 'taskDefinition' > task-definition.json
+
+    - name: Update task definition with new image and environment variables
+      id: task-def
+      run: |
+        echo "🔄 Updating task definition..."
+        
+        # 새로운 이미지로 업데이트하고 환경변수 설정
+        jq --arg IMAGE "${{ steps.build-backend.outputs.image }}" \
+           --arg POSTGRES_USER "${{ secrets.POSTGRES_USER }}" \
+           --arg POSTGRES_PASSWORD "${{ secrets.POSTGRES_PASSWORD }}" \
+           --arg POSTGRES_ENDPOINT "${{ secrets.POSTGRES_ENDPOINT }}" \
+           --arg LLM_SERVER_EXPERT_SINGLE_URL "${{ secrets.LLM_SERVER_EXPERT_SINGLE_URL }}" \
+           --arg LLM_SERVER_EXPERT_CHAIN_URL "${{ secrets.LLM_SERVER_EXPERT_CHAIN_URL }}" \
+           --arg LLM_SERVER_EXPERT_STREAM_URL "${{ secrets.LLM_SERVER_EXPERT_STREAM_URL }}" \
+           --arg AI_SERVER_HOST "${{ secrets.AI_SERVER_HOST }}" \
+           --arg AI_SERVER_PORT "${{ secrets.AI_SERVER_PORT }}" \
+           --arg REDIS_ENDPOINT "${{ secrets.REDIS_ENDPOINT }}" \
+           --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY }}" \
+           --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_KEY }}" \
+           --arg FITROOM_API_KEY "${{ secrets.FITROOM_API_KEY }}" \
+           '
+           .containerDefinitions[0].image = $IMAGE |
+           .containerDefinitions[0].environment = [
+             {"name": "SPRING_DATASOURCE_URL", "value": ("jdbc:postgresql://" + $POSTGRES_ENDPOINT + ":5432/postgres?sslmode=require")},
+             {"name": "SPRING_DATASOURCE_USERNAME", "value": $POSTGRES_USER},
+             {"name": "SPRING_DATASOURCE_PASSWORD", "value": $POSTGRES_PASSWORD},
+             {"name": "SPRING_DATASOURCE_DRIVER_CLASS_NAME", "value": "org.postgresql.Driver"},
+             {"name": "LLM_SERVER_EXPERT_SINGLE_URL", "value": $LLM_SERVER_EXPERT_SINGLE_URL},
+             {"name": "LLM_SERVER_EXPERT_CHAIN_URL", "value": $LLM_SERVER_EXPERT_CHAIN_URL},
+             {"name": "LLM_SERVER_EXPERT_STREAM_URL", "value": $LLM_SERVER_EXPERT_STREAM_URL},
+             {"name": "AI_SERVER_HOST", "value": $AI_SERVER_HOST},
+             {"name": "AI_SERVER_PORT", "value": $AI_SERVER_PORT},
+             {"name": "REDIS_ENDPOINT", "value": $REDIS_ENDPOINT},
+             {"name": "AWS_ACCESS_KEY", "value": $AWS_ACCESS_KEY},
+             {"name": "AWS_SECRET_KEY", "value": $AWS_SECRET_KEY},
+             {"name": "FITROOM_API_KEY", "value": $FITROOM_API_KEY}
+           ] |
+           del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)
+           ' task-definition.json > new-task-definition.json
+
+    - name: Register new task definition
+      id: register-task-def
+      run: |
+        echo "📝 Registering new task definition..."
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://new-task-definition.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+        
+        echo "✅ New task definition: $NEW_TASK_DEF_ARN"
+        echo "task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
+    - name: Debug ECS Variables
+      run: |
+        echo "🔍 Debugging ECS configuration..."
+        echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
+        echo "ECS_SERVICE_BACKEND: 'thefirsttake-backend-service-vegat2du'"
+        echo "Length of service name: ${ECS_SERVICE_BACKEND}"
+    
+    - name: Update ECS Backend Service
+      run: |
+        echo "🚀 Updating ECS service..."
+        SERVICE_NAME="thefirsttake-backend-service-vegat2du"
+        TASK_DEFINITION="${{ steps.register-task-def.outputs.task-def-arn }}"
+        CLUSTER_NAME="the-first-take-cluster"
+        aws ecs update-service --cluster "${CLUSTER_NAME}" --service "${SERVICE_NAME}" --task-definition "${TASK_DEFINITION}" --force-new-deployment
+
+    - name: Wait for service stability
+      run: |
+        echo "⏳ Waiting for service to stabilize..."
+        CLUSTER_NAME="the-first-take-cluster"
+        SERVICE_NAME="thefirsttake-backend-service-vegat2du"
+        aws ecs wait services-stable --cluster "${CLUSTER_NAME}" --services "${SERVICE_NAME}"
+        echo "✅ Service deployment completed!"
+
+  health-check:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Health Check
+      run: |
+        echo "🔍 Performing health check..."
+        
+        for i in {1..30}; do
+          if curl -f -s https://the-second-take.com/actuator/health; then
+            echo "✅ Health check passed!"
+            exit 0
+          fi
+          echo "Waiting for service to be healthy... ($i/30)"
+          sleep 10
+        done
+        
+        echo "❌ Health check failed after 5 minutes!"
+        exit 1
+
+    - name: Deployment Success Notification
+      if: success()
+      run: |
+        echo "🎉 Deployment successful!"
+        echo "🌐 Service URL: https://the-second-take.com"
+        echo "🏥 Health Check: https://the-second-take.com/actuator/health"
