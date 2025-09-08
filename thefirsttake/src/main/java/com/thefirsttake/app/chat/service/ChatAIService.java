@@ -171,7 +171,7 @@ public class ChatAIService {
         try {
             Map<String, Object> requestMap = buildExpertSingleRequest(userInput, roomId, agent);
             // String fastApiUrl = "http://"+"localhost"+":"+llmServerPort+"/api/expert/single";
-            String fastApiUrl = "http://"+llmServerHost+":"+llmServerPort+"/api/expert/single";
+            String fastApiUrl = "http://"+llmServerHost+":"+llmServerPort+"/llm/api/expert/single";
             
             ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
             CommonResponse body = response.getBody();
@@ -200,7 +200,7 @@ public class ChatAIService {
     public List<Map<String, Object>> getExpertChainResult(String userInput, Long roomId) {
         try {
             Map<String, Object> requestMap = buildExpertChainRequest(userInput, roomId);
-            String fastApiUrl = "http://localhost:6020/api/expert/chain";
+            String fastApiUrl = "http://localhost:6020/llm/api/expert/chain";
 
             ResponseEntity<CommonResponse> response = restTemplate.postForEntity(fastApiUrl, requestMap, CommonResponse.class);
             CommonResponse body = response.getBody();

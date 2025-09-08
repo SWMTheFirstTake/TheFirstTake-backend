@@ -63,7 +63,7 @@ public class SseTestController {
                 sendSseMessage(emitter, "status", "외부 API 호출 중...", 3);
                 
                 // 외부 API 호출 (localhost:6020)
-                String externalApiUrl = "http://localhost:6020/api/expert/single/stream";
+                String externalApiUrl = "http://localhost:6020/llm/api/expert/single/stream";
                 
                 // 요청 데이터 준비 (FastAPI 요구사항에 맞춤)
                 Map<String, Object> expertRequest = new HashMap<>();

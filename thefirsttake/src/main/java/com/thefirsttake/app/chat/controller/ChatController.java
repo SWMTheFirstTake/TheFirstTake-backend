@@ -1103,7 +1103,7 @@ public class ChatController {
                 }
                 
                 // 외부 스트리밍 API 호출 준비
-                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/single/stream";
+                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/llm/api/expert/single/stream";
 
                 // 항상 전체 전문가 실행
                 java.util.List<String> expertList = new java.util.ArrayList<>();
@@ -1521,7 +1521,7 @@ public class ChatController {
                     log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", resolvedRoomId, finalSession.getId(), e.getMessage(), e);
                 }
                 
-                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/api/expert/single/stream";
+                final String externalApiUrl = "http://" + llmServerHost + ":" + llmServerPort + "/llm/api/expert/single/stream";
 
                 java.util.List<String> expertList = new java.util.ArrayList<>();
                 expertList.add("style_analyst");
