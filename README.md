@@ -150,6 +150,105 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - `GET /api/auth/me` - 현재 사용자 정보 조회
 - `POST /api/auth/logout` - 로그아웃
 
+## 🎨 프론트엔드 개발자 가이드
+
+### 카카오 로그인 구현 방법
+
+#### 1. 로그인 버튼 구현
+```html
+<button onclick="handleKakaoLogin()">카카오로 로그인</button>
+```
+
+```javascript
+function handleKakaoLogin() {
+    const kakaoAuthURL = 'https://kauth.kakao.com/oauth/authorize?' +
+        'client_id=YOUR_KAKAO_CLIENT_ID&' +
+        'redirect_uri=https://the-second-take.com/api/auth/kakao/callback&' +
+        'response_type=code';
+    
+    window.location.href = kakaoAuthURL;
+}
+```
+
+#### 2. 사용자 정보 조회
+```javascript
+async function getCurrentUser() {
+    try {
+        const response = await fetch('/api/auth/me', {
+            method: 'GET',
+            credentials: 'include', // 쿠키 포함 필수!
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            const user = data.data;
+            console.log('사용자 ID:', user.userId);
+            console.log('닉네임:', user.nickname);
+            return user;
+        } else {
+            // 로그인되지 않은 사용자
+            return null;
+        }
+    } catch (error) {
+        console.error('사용자 정보 조회 실패:', error);
+        return null;
+    }
+}
+```
+
+#### 3. 로그아웃 구현
+```javascript
+async function logout() {
+    try {
+        const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include', // 쿠키 포함 필수!
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('로그아웃되었습니다.');
+            window.location.href = '/login';
+        }
+    } catch (error) {
+        console.error('로그아웃 실패:', error);
+    }
+}
+```
+
+#### 4. 페이지 로드 시 사용자 상태 확인
+```javascript
+window.onload = async function() {
+    const user = await getCurrentUser();
+    
+    if (user) {
+        // 로그인된 사용자
+        document.getElementById('user-info').innerHTML = `
+            <p>안녕하세요, ${user.nickname}님!</p>
+            <button onclick="logout()">로그아웃</button>
+        `;
+    } else {
+        // 로그인되지 않은 사용자
+        document.getElementById('login-section').style.display = 'block';
+    }
+};
+```
+
+### ⚠️ 중요 사항
+
+1. **credentials: 'include' 필수**: 모든 API 호출 시 쿠키를 포함해야 합니다.
+2. **HTTPS 환경**: 프로덕션에서는 반드시 HTTPS를 사용해야 합니다.
+3. **에러 처리**: 네트워크 오류와 인증 오류를 구분하여 처리하세요.
+4. **토큰 만료**: JWT 토큰은 7일 후 자동 만료됩니다.
+
 ### 응답 형식 예시
 
 #### AI 응답 (receive API)
@@ -594,6 +693,12 @@ export JWT_SECRET=your_jwt_secret_key_min_256_bits
 2. "카카오로 로그인" 버튼 클릭
 3. 카카오 로그인 진행
 4. 성공 시 사용자 정보 확인
+
+### 5. API 문서 확인
+
+- **Swagger UI**: `http://localhost:8000/swagger-ui.html`
+- **OpenAPI JSON**: `http://localhost:8000/v3/api-docs`
+- 인증 관련 API는 "인증 관리" 태그에서 확인 가능
 
 ### 설치 및 실행
 ```bash
