@@ -87,7 +87,9 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - **피팅 결과 제공**: 가상 피팅 완료 후 결과 이미지 및 상태 정보 제공
 - **실시간 피팅 처리**: 비동기 작업을 통한 효율적인 가상 피팅 처리
 
-### 🔐 사용자 관리
+### 🔐 사용자 관리 & 인증
+- **카카오 OAuth 로그인**: HttpOnly 쿠키 기반 보안 인증
+- **JWT 토큰 관리**: 안전한 토큰 생성 및 검증
 - **세션 기반 인증**: 안전한 사용자 세션 관리
 - **채팅방 관리**: 개인별 채팅방 생성 및 히스토리 관리
 - **사용자 로그**: 상세한 사용자 활동 로그 및 분석
@@ -142,6 +144,11 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - `POST /api/fitting/start` - 가상 피팅 시작 (비동기 처리)
 - `GET /api/fitting/status/{taskId}` - 가상 피팅 상태 조회
 - `GET /api/fitting/result/{taskId}` - 가상 피팅 결과 조회
+
+### 인증 관련
+- `GET /api/auth/kakao/callback` - 카카오 로그인 콜백 처리
+- `GET /api/auth/me` - 현재 사용자 정보 조회
+- `POST /api/auth/logout` - 로그아웃
 
 ### 응답 형식 예시
 
@@ -434,6 +441,23 @@ SSE 이벤트 전송 (connect, content, complete, error)
 
 ## 🔧 최근 업데이트 사항
 
+### v1.8.0 (2024-01-27) - 카카오 OAuth 로그인 시스템 구축
+- **카카오 OAuth 로그인 구현**:
+  - HttpOnly 쿠키 기반 보안 인증 시스템
+  - JWT 토큰을 통한 사용자 인증 및 세션 관리
+  - XSS 및 CSRF 공격 방지 보안 강화
+- **새로운 인증 API 엔드포인트**:
+  - `GET /api/auth/kakao/callback` - 카카오 로그인 콜백 처리
+  - `GET /api/auth/me` - 현재 사용자 정보 조회
+  - `POST /api/auth/logout` - 로그아웃
+- **보안 기능**:
+  - HttpOnly, Secure, SameSite 쿠키 설정
+  - JWT 토큰 검증 및 사용자 정보 추출
+  - 카카오 API 연동을 통한 안전한 사용자 인증
+- **테스트 도구**:
+  - `kakao-login-test.html` - 카카오 로그인 기능 테스트 페이지
+  - 실시간 사용자 정보 조회 및 로그아웃 기능
+
 ### v1.7.0 (2024-01-26) - 스트림 API 및 실시간 채팅 시스템 구축
 - **스트림 API 시스템 구축**:
   - `GET /api/chat/rooms/{roomId}/messages/stream` - 특정 방에서 실시간 AI 응답 수신
@@ -519,6 +543,57 @@ SSE 이벤트 전송 (connect, content, complete, error)
 - PostgreSQL
 - Redis
 - AWS S3 계정
+- 카카오 개발자 계정
+
+## 🔐 카카오 로그인 설정
+
+### 1. 카카오 개발자 콘솔 설정
+
+1. **애플리케이션 등록**
+   - https://developers.kakao.com 접속
+   - 카카오 계정으로 로그인
+   - "내 애플리케이션" → "애플리케이션 추가하기"
+   - 앱 이름 입력 (예: "TheSecondTake") → 저장
+
+2. **앱 키 확인**
+   - 생성된 앱 클릭
+   - "앱 키" 탭에서 REST API 키 복사
+   - "보안" 탭에서 Client Secret 생성 → 복사
+
+3. **플랫폼 및 리다이렉트 URI 설정**
+   - "제품 설정" → "카카오 로그인" 활성화
+   - "Redirect URI" 등록:
+     - 개발: `https://the-second-take.com/api/auth/kakao/callback`
+     - 운영: `https://the-second-take.com/api/auth/kakao/callback`
+
+### 2. GitHub Actions Secrets 설정
+
+GitHub 저장소의 Settings → Secrets and variables → Actions에서 다음 시크릿을 추가하세요:
+
+```
+KAKAO_CLIENT_ID=your_kakao_rest_api_key
+KAKAO_CLIENT_SECRET=your_kakao_client_secret
+KAKAO_REDIRECT_URI=https://the-second-take.com/api/auth/kakao/callback
+JWT_SECRET=your_jwt_secret_key_min_256_bits
+```
+
+### 3. 로컬 개발 환경 설정
+
+로컬에서 테스트할 때는 다음 환경변수를 설정하세요:
+
+```bash
+export KAKAO_CLIENT_ID=your_kakao_rest_api_key
+export KAKAO_CLIENT_SECRET=your_kakao_client_secret
+export KAKAO_REDIRECT_URI=http://localhost:8000/api/auth/kakao/callback
+export JWT_SECRET=your_jwt_secret_key_min_256_bits
+```
+
+### 4. 테스트
+
+1. 애플리케이션 실행 후 `http://localhost:8000/kakao-login-test.html` 접속
+2. "카카오로 로그인" 버튼 클릭
+3. 카카오 로그인 진행
+4. 성공 시 사용자 정보 확인
 
 ### 설치 및 실행
 ```bash
@@ -550,6 +625,10 @@ cd TheFirstTake-backend/thefirsttake
 - `AWS_ACCESS_KEY`: AWS 액세스 키
 - `AWS_SECRET_KEY`: AWS 시크릿 키
 - `FITROOM_API_KEY`: FitRoom API 키
+- `KAKAO_CLIENT_ID`: 카카오 개발자 콘솔 REST API 키
+- `KAKAO_CLIENT_SECRET`: 카카오 개발자 콘솔 Client Secret
+- `KAKAO_REDIRECT_URI`: 카카오 로그인 리다이렉트 URI
+- `JWT_SECRET`: JWT 토큰 서명용 시크릿 키 (최소 256비트)
 
 ## 📊 모니터링 & 로깅
 

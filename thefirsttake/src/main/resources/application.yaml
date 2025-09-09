@@ -45,7 +45,13 @@ jpa:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
 jwt:
-  secret: "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111"
+  secret: ${JWT_SECRET:X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111}
+  expiration: 604800000  # 7일 (밀리초)
+
+kakao:
+  client-id: ${KAKAO_CLIENT_ID}
+  client-secret: ${KAKAO_CLIENT_SECRET}
+  redirect-uri: ${KAKAO_REDIRECT_URI:https://the-second-take.com/api/auth/kakao/callback}
 llm:
   server:
     expert-single-url: ${LLM_SERVER_EXPERT_SINGLE_URL}

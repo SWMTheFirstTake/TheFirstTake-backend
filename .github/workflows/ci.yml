@@ -289,6 +289,10 @@ jobs:
            --arg AWS_ACCESS_KEY "${{ secrets.AWS_ACCESS_KEY }}" \
            --arg AWS_SECRET_KEY "${{ secrets.AWS_SECRET_KEY }}" \
            --arg FITROOM_API_KEY "${{ secrets.FITROOM_API_KEY }}" \
+           --arg KAKAO_CLIENT_ID "${{ secrets.KAKAO_CLIENT_ID }}" \
+           --arg KAKAO_CLIENT_SECRET "${{ secrets.KAKAO_CLIENT_SECRET }}" \
+           --arg KAKAO_REDIRECT_URI "${{ secrets.KAKAO_REDIRECT_URI }}" \
+           --arg JWT_SECRET "${{ secrets.JWT_SECRET }}" \
            '
            .containerDefinitions[0].image = $IMAGE |
            .containerDefinitions[0].environment = [
@@ -304,7 +308,11 @@ jobs:
              {"name": "REDIS_ENDPOINT", "value": $REDIS_ENDPOINT},
              {"name": "AWS_ACCESS_KEY", "value": $AWS_ACCESS_KEY},
              {"name": "AWS_SECRET_KEY", "value": $AWS_SECRET_KEY},
-             {"name": "FITROOM_API_KEY", "value": $FITROOM_API_KEY}
+             {"name": "FITROOM_API_KEY", "value": $FITROOM_API_KEY},
+             {"name": "KAKAO_CLIENT_ID", "value": $KAKAO_CLIENT_ID},
+             {"name": "KAKAO_CLIENT_SECRET", "value": $KAKAO_CLIENT_SECRET},
+             {"name": "KAKAO_REDIRECT_URI", "value": $KAKAO_REDIRECT_URI},
+             {"name": "JWT_SECRET", "value": $JWT_SECRET}
            ] |
            del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)
            ' task-definition.json > new-task-definition.json

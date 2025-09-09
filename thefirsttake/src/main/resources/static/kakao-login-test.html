@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 로그인 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .kakao-login-btn {
+            background-color: #FEE500;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 300px;
+        }
+        .kakao-login-btn:hover {
+            background-color: #FFEB3B;
+        }
+        .user-info {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .logout-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .logout-btn:hover {
+            background-color: #d32f2f;
+        }
+        .api-test {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        .api-test button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .api-test button:hover {
+            background-color: #1976D2;
+        }
+        .response {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>카카오 로그인 테스트</h1>
+        
+        <div id="login-section">
+            <h2>로그인</h2>
+            <button class="kakao-login-btn" onclick="handleKakaoLogin()">
+                카카오로 로그인
+            </button>
+        </div>
+
+        <div id="user-section" style="display: none;">
+            <h2>사용자 정보</h2>
+            <div class="user-info" id="user-info">
+                <!-- 사용자 정보가 여기에 표시됩니다 -->
+            </div>
+            <button class="logout-btn" onclick="handleLogout()">로그아웃</button>
+        </div>
+
+        <div class="api-test">
+            <h3>API 테스트</h3>
+            <button onclick="getCurrentUser()">현재 사용자 정보 조회</button>
+            <button onclick="testLogout()">로그아웃 테스트</button>
+            <div class="response" id="api-response"></div>
+        </div>
+
+        <div id="error-section" style="display: none;">
+            <div class="error" id="error-message"></div>
+        </div>
+    </div>
+
+    <script>
+        // 페이지 로드 시 사용자 정보 확인
+        window.onload = function() {
+            checkUserStatus();
+        };
+
+        // URL 파라미터에서 에러 메시지 확인
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorMessage = urlParams.get('message');
+        if (errorMessage) {
+            showError(decodeURIComponent(errorMessage));
+        }
+
+        function handleKakaoLogin() {
+            // 카카오 로그인 URL로 리다이렉트
+            const kakaoAuthURL = 'https://kauth.kakao.com/oauth/authorize?' +
+                'client_id=YOUR_KAKAO_CLIENT_ID&' +
+                'redirect_uri=https://the-second-take.com/api/auth/kakao/callback&' +
+                'response_type=code';
+            
+            window.location.href = kakaoAuthURL;
+        }
+
+        async function getCurrentUser() {
+            try {
+                const response = await fetch('/api/auth/me', {
+                    method: 'GET',
+                    credentials: 'include', // 쿠키 포함
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById('api-response').textContent = JSON.stringify(data, null, 2);
+                
+                if (response.ok && data.status === 'success') {
+                    showUserInfo(data.data);
+                } else {
+                    hideUserInfo();
+                }
+            } catch (error) {
+                document.getElementById('api-response').textContent = 'Error: ' + error.message;
+                hideUserInfo();
+            }
+        }
+
+        async function testLogout() {
+            try {
+                const response = await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById('api-response').textContent = JSON.stringify(data, null, 2);
+                
+                if (response.ok) {
+                    hideUserInfo();
+                }
+            } catch (error) {
+                document.getElementById('api-response').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function handleLogout() {
+            await testLogout();
+            alert('로그아웃되었습니다.');
+        }
+
+        async function checkUserStatus() {
+            await getCurrentUser();
+        }
+
+        function showUserInfo(userInfo) {
+            document.getElementById('user-info').innerHTML = `
+                <h4>로그인된 사용자</h4>
+                <p><strong>사용자 ID:</strong> ${userInfo.userId}</p>
+                <p><strong>닉네임:</strong> ${userInfo.nickname}</p>
+            `;
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('user-section').style.display = 'block';
+        }
+
+        function hideUserInfo() {
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('user-section').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-section').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
