@@ -28,6 +28,7 @@ jobs:
       # 테스트용 기본값들
       KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
       KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+      KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
       JWT_SECRET:  ${{ secrets.JWT_SECRET }}
 
     steps:
@@ -74,6 +75,7 @@ jobs:
       FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
       KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
       KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+      KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
@@ -154,6 +156,7 @@ jobs:
             echo 'Environment="FITROOM_API_KEY=${{ secrets.FITROOM_API_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="JWT_SECRET=${{ secrets.JWT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
