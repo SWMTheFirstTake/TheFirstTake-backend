@@ -118,7 +118,11 @@
         </div>
     </div>
 
+    <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
     <script>
+        // 카카오 SDK 초기화
+        Kakao.init('YOUR_KAKAO_CLIENT_ID');
+        
         // 페이지 로드 시 사용자 정보 확인
         window.onload = function() {
             checkUserStatus();
@@ -187,8 +191,16 @@
         }
 
         async function handleLogout() {
+            // 1. 서버 측 로그아웃
             await testLogout();
-            alert('로그아웃되었습니다.');
+            
+            // 2. 카카오 로그아웃
+            if (window.Kakao && window.Kakao.Auth) {
+                window.Kakao.Auth.logout();
+                console.log('카카오 로그아웃 완료');
+            }
+            
+            alert('완전히 로그아웃되었습니다.');
         }
 
         async function checkUserStatus() {

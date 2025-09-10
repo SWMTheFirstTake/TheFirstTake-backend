@@ -200,10 +200,11 @@ async function getCurrentUser() {
 }
 ```
 
-#### 3. 로그아웃 구현
+#### 3. 로그아웃 구현 (완전한 로그아웃)
 ```javascript
 async function logout() {
     try {
+        // 1. 서버 측 로그아웃 (JWT 쿠키 삭제)
         const response = await fetch('/api/auth/logout', {
             method: 'POST',
             credentials: 'include', // 쿠키 포함 필수!
@@ -212,7 +213,10 @@ async function logout() {
             }
         });
 
-        const data = await response.json();
+        // 2. 카카오 로그아웃 (카카오 측 세션도 삭제)
+        if (window.Kakao && window.Kakao.Auth) {
+            window.Kakao.Auth.logout();
+        }
         
         if (response.ok) {
             alert('로그아웃되었습니다.');
@@ -222,6 +226,14 @@ async function logout() {
         console.error('로그아웃 실패:', error);
     }
 }
+```
+
+**카카오 SDK 추가 (HTML에 포함):**
+```html
+<script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+<script>
+    Kakao.init('YOUR_KAKAO_CLIENT_ID');
+</script>
 ```
 
 #### 4. 페이지 로드 시 사용자 상태 확인

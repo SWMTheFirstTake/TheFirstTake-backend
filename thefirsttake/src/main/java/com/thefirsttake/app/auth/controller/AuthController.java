@@ -146,17 +146,33 @@ public class AuthController {
             2. 쿠키 만료 시간을 0으로 설정하여 즉시 삭제
             3. 로그아웃 성공 응답 반환
             
+            **⚠️ 중요: 완전한 로그아웃을 위해서는 프론트엔드에서 추가 처리 필요**
+            
             **프론트엔드에서 사용하는 방법:**
             ```javascript
-            const response = await fetch('/api/auth/logout', {
-                method: 'POST',
-                credentials: 'include'  // 쿠키 포함
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                // 로그아웃 성공 처리
+            async function logout() {
+                // 1. 서버 측 로그아웃
+                const response = await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                // 2. 카카오 로그아웃 (선택사항)
+                if (window.Kakao && window.Kakao.Auth) {
+                    window.Kakao.Auth.logout();
+                }
+                
+                // 3. 페이지 이동
                 window.location.href = '/login';
             }
+            ```
+            
+            **카카오 SDK 로그아웃을 위한 HTML 추가:**
+            ```html
+            <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+            <script>
+                Kakao.init('YOUR_KAKAO_CLIENT_ID');
+            </script>
             ```
             """,
         tags = {"인증 관리"}

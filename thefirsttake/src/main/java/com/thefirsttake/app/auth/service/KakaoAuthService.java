@@ -87,4 +87,29 @@ public class KakaoAuthService {
             throw new Exception("카카오 사용자 정보 조회 중 오류 발생: " + e.getMessage());
         }
     }
+    
+    public void logout(String accessToken) throws Exception {
+        String logoutUrl = "https://kapi.kakao.com/v1/user/logout";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        headers.set("Accept", "application/json");
+        
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        try {
+            @SuppressWarnings("rawtypes")
+            ResponseEntity<Map> response = restTemplate.postForEntity(logoutUrl, request, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("카카오 로그아웃 성공");
+            } else {
+                log.warn("카카오 로그아웃 응답: {}", response.getStatusCode());
+            }
+            
+        } catch (Exception e) {
+            log.error("카카오 로그아웃 실패: {}", e.getMessage());
+            // 카카오 로그아웃 실패해도 서버 측 로그아웃은 진행
+        }
+    }
 }
