@@ -712,6 +712,49 @@ export JWT_SECRET=your_jwt_secret_key_min_256_bits
 - **OpenAPI JSON**: `http://localhost:8000/v3/api-docs`
 - 인증 관련 API는 "인증 관리" 태그에서 확인 가능
 
+### 6. 모니터링 설정 (프로메테우스 + 그라파나)
+
+#### 로컬 모니터링 환경 구축
+```bash
+# 1. 모니터링 스택 실행
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# 2. Spring Boot 애플리케이션 실행 (별도 터미널)
+cd thefirsttake
+./gradlew bootRun
+```
+
+#### 접속 URL
+- **프로메테우스**: http://localhost:9090
+- **그라파나**: http://localhost:3000 (admin/admin)
+- **메트릭 엔드포인트**: http://localhost:8000/actuator/prometheus
+
+#### 주요 메트릭
+
+**인증 관련:**
+- `kakao_login_success_total`: 카카오 로그인 성공 횟수
+- `kakao_login_failure_total`: 카카오 로그인 실패 횟수
+- `logout_total`: 로그아웃 횟수
+- `jwt_token_generation_duration`: JWT 토큰 생성 시간
+
+**채팅 SSE 관련:**
+- `sse_connections_total`: SSE 연결 총 횟수
+- `sse_disconnections_total`: SSE 연결 해제 총 횟수
+- `sse_connection_duration`: SSE 연결 지속 시간
+- `llm_api_calls_total`: 외부 LLM API 호출 총 횟수
+- `llm_api_success_total`: LLM API 호출 성공 횟수
+- `llm_api_failure_total`: LLM API 호출 실패 횟수
+- `llm_api_response_duration`: LLM API 응답 시간
+- `product_search_api_calls_total`: 상품 검색 API 호출 총 횟수
+- `product_search_api_success_total`: 상품 검색 API 성공 횟수
+- `product_search_api_failure_total`: 상품 검색 API 실패 횟수
+- `product_search_api_response_duration`: 상품 검색 API 응답 시간
+
+**기본 메트릭:**
+- `http_server_requests_seconds`: HTTP 요청 응답 시간
+- `jvm_memory_used_bytes`: JVM 메모리 사용량
+- `jvm_gc_pause_seconds`: GC 일시정지 시간
+
 ### 설치 및 실행
 ```bash
 # 1. 저장소 클론

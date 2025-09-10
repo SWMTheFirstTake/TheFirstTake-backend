@@ -83,12 +83,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when-authorized
+    prometheus:
+      enabled: true
   health:
     db:
       enabled: true
     redis:
       enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true

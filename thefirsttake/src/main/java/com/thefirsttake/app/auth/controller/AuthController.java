@@ -5,6 +5,8 @@ import com.thefirsttake.app.auth.dto.UserInfo;
 import com.thefirsttake.app.auth.service.JwtService;
 import com.thefirsttake.app.auth.service.KakaoAuthService;
 import com.thefirsttake.app.common.response.CommonResponse;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -36,6 +38,11 @@ public class AuthController {
     
     private final KakaoAuthService kakaoAuthService;
     private final JwtService jwtService;
+    private final Counter kakaoLoginSuccessCounter;
+    private final Counter kakaoLoginFailureCounter;
+    private final Counter logoutCounter;
+    private final Timer jwtTokenGenerationTimer;
+    
     
     @Operation(
         summary = "카카오 로그인 콜백 처리",
@@ -105,7 +112,8 @@ public class AuthController {
             log.info("카카오 사용자 정보 조회 성공. userId: {}", userInfo.getId());
             
             // 3. JWT 토큰 생성 (액세스 토큰 + 리프레시 토큰)
-            String jwtAccessToken = jwtService.generateAccessToken(userInfo.getId(), userInfo.getNickname());
+            String jwtAccessToken = jwtTokenGenerationTimer.recordCallable(() -> 
+                jwtService.generateAccessToken(userInfo.getId(), userInfo.getNickname()));
             String jwtRefreshToken = jwtService.generateRefreshToken(userInfo.getId());
             
             // 4. HttpOnly 쿠키로 토큰 설정
@@ -129,7 +137,10 @@ public class AuthController {
             log.info("JWT 토큰 설정 완료. 액세스 토큰 길이: {}, 리프레시 토큰 길이: {}", 
                 jwtAccessToken.length(), jwtRefreshToken.length());
             
-            // 5. 프론트엔드로 리다이렉트
+            // 5. 성공 메트릭 증가
+            kakaoLoginSuccessCounter.increment();
+            
+            // 6. 프론트엔드로 리다이렉트
             HttpHeaders headers = new HttpHeaders();
             headers.setLocation(URI.create("https://the-second-take.com/"));
             
@@ -138,6 +149,9 @@ public class AuthController {
             
         } catch (Exception e) {
             log.error("카카오 로그인 실패: {}", e.getMessage());
+            
+            // 실패 메트릭 증가
+            kakaoLoginFailureCounter.increment();
             
             // 실패 시 에러 페이지로 리다이렉트
             String errorUrl = "https://the-second-take.com/auth/error?message=" + 
@@ -248,6 +262,9 @@ public class AuthController {
             refreshTokenCookie.setHttpOnly(true);
             refreshTokenCookie.setSecure(true);
             response.addCookie(refreshTokenCookie);
+            
+            // 로그아웃 메트릭 증가
+            logoutCounter.increment();
             
             log.info("로그아웃 성공");
             return ResponseEntity.ok(CommonResponse.success("로그아웃 성공"));
