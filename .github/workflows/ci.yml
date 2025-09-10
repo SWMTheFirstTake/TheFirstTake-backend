@@ -29,7 +29,9 @@ jobs:
       KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
       KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
       KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
-      JWT_SECRET:  ${{ secrets.JWT_SECRET }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_EXPIRATION: 604800000
+      AWS_S3_BUCKET: thefirsttake-file-upload
 
     steps:
       - name: Checkout code
@@ -77,6 +79,8 @@ jobs:
       KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
       KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_EXPIRATION: 604800000
+      AWS_S3_BUCKET: thefirsttake-file-upload
 
     steps:
       - name: Download build artifact
@@ -158,6 +162,8 @@ jobs:
             echo 'Environment="KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="JWT_SECRET=${{ secrets.JWT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="JWT_EXPIRATION=604800000"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="AWS_S3_BUCKET=thefirsttake-file-upload"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
