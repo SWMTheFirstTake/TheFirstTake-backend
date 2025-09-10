@@ -50,9 +50,10 @@ public class AuthController {
             5. 메인 페이지로 리다이렉트
             
             **보안 특징:**
-            - JWT 토큰이 HttpOnly 쿠키에 저장되어 XSS 공격 방지
+            - JWT 액세스 토큰(15분) + 리프레시 토큰(7일)을 HttpOnly 쿠키에 저장
+            - XSS 공격 방지 및 짧은 액세스 토큰 수명으로 보안 강화
             - Secure 플래그로 HTTPS에서만 전송
-            - 7일 자동 만료
+            - 자동 토큰 갱신으로 사용자 경험 향상
             """,
         tags = {"인증 관리"}
     )
@@ -96,25 +97,37 @@ public class AuthController {
             log.info("카카오 로그인 콜백 시작. code: {}", code);
             
             // 1. Authorization Code로 Access Token 받기
-            String accessToken = kakaoAuthService.getAccessToken(code);
+            String kakaoAccessToken = kakaoAuthService.getAccessToken(code);
             log.info("카카오 액세스 토큰 획득 성공");
             
             // 2. Access Token으로 사용자 정보 조회
-            KakaoUserInfo userInfo = kakaoAuthService.getUserInfo(accessToken);
+            KakaoUserInfo userInfo = kakaoAuthService.getUserInfo(kakaoAccessToken);
             log.info("카카오 사용자 정보 조회 성공. userId: {}", userInfo.getId());
             
-            // 3. JWT 토큰 생성
-            String jwtToken = jwtService.generateToken(userInfo.getId(), userInfo.getNickname());
+            // 3. JWT 토큰 생성 (액세스 토큰 + 리프레시 토큰)
+            String jwtAccessToken = jwtService.generateAccessToken(userInfo.getId(), userInfo.getNickname());
+            String jwtRefreshToken = jwtService.generateRefreshToken(userInfo.getId());
             
             // 4. HttpOnly 쿠키로 토큰 설정
-            Cookie jwtCookie = new Cookie("jwt", jwtToken);
-            jwtCookie.setHttpOnly(true);           // XSS 방지
-            jwtCookie.setSecure(true);             // HTTPS에서만 전송
-            jwtCookie.setPath("/");                // 전체 도메인에서 사용
-            jwtCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
-            // jwtCookie.setSameSite("Strict");    // CSRF 방지 (Spring Boot 2.6+에서 지원)
+            // 액세스 토큰 쿠키 (15분)
+            Cookie accessTokenCookie = new Cookie("access_token", jwtAccessToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(true);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(15 * 60); // 15분
             
-            response.addCookie(jwtCookie);
+            // 리프레시 토큰 쿠키 (7일)
+            Cookie refreshTokenCookie = new Cookie("refresh_token", jwtRefreshToken);
+            refreshTokenCookie.setHttpOnly(true);
+            refreshTokenCookie.setSecure(true);
+            refreshTokenCookie.setPath("/");
+            refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
+            
+            response.addCookie(accessTokenCookie);
+            response.addCookie(refreshTokenCookie);
+            
+            log.info("JWT 토큰 설정 완료. 액세스 토큰 길이: {}, 리프레시 토큰 길이: {}", 
+                jwtAccessToken.length(), jwtRefreshToken.length());
             
             // 5. 프론트엔드로 리다이렉트
             HttpHeaders headers = new HttpHeaders();
@@ -142,7 +155,7 @@ public class AuthController {
             사용자 로그아웃을 처리합니다.
             
             **동작 방식:**
-            1. HttpOnly 쿠키에서 JWT 토큰을 삭제
+            1. HttpOnly 쿠키에서 액세스 토큰과 리프레시 토큰을 삭제
             2. 쿠키 만료 시간을 0으로 설정하여 즉시 삭제
             3. 로그아웃 성공 응답 반환
             
@@ -220,12 +233,21 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<CommonResponse> logout(HttpServletResponse response) {
         try {
-            // 쿠키 삭제
-            Cookie jwtCookie = new Cookie("jwt", null);
-            jwtCookie.setMaxAge(0);
-            jwtCookie.setPath("/");
-            jwtCookie.setHttpOnly(true);
-            response.addCookie(jwtCookie);
+            // 액세스 토큰 쿠키 삭제
+            Cookie accessTokenCookie = new Cookie("access_token", null);
+            accessTokenCookie.setMaxAge(0);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(true);
+            response.addCookie(accessTokenCookie);
+            
+            // 리프레시 토큰 쿠키 삭제
+            Cookie refreshTokenCookie = new Cookie("refresh_token", null);
+            refreshTokenCookie.setMaxAge(0);
+            refreshTokenCookie.setPath("/");
+            refreshTokenCookie.setHttpOnly(true);
+            refreshTokenCookie.setSecure(true);
+            response.addCookie(refreshTokenCookie);
             
             log.info("로그아웃 성공");
             return ResponseEntity.ok(CommonResponse.success("로그아웃 성공"));
@@ -243,8 +265,9 @@ public class AuthController {
             현재 로그인된 사용자의 정보를 조회합니다.
             
             **인증 방식:**
-            - HttpOnly 쿠키에 저장된 JWT 토큰을 사용하여 인증
-            - 쿠키가 없거나 토큰이 유효하지 않으면 401 Unauthorized 반환
+            - HttpOnly 쿠키에 저장된 JWT 액세스 토큰을 사용하여 인증
+            - 액세스 토큰이 없거나 유효하지 않으면 401 Unauthorized 반환
+            - 토큰 만료 시 리프레시 토큰으로 자동 갱신 가능
             
             **프론트엔드에서 사용하는 방법:**
             ```javascript
@@ -340,10 +363,85 @@ public class AuthController {
         }
     }
     
+    @Operation(
+        summary = "토큰 갱신",
+        description = """
+            리프레시 토큰을 사용하여 새로운 액세스 토큰을 발급합니다.
+            
+            **동작 방식:**
+            1. 리프레시 토큰 쿠키에서 토큰 추출
+            2. 리프레시 토큰 유효성 검증
+            3. 새로운 액세스 토큰과 리프레시 토큰 발급
+            4. 쿠키에 새로운 토큰들 저장
+            
+            **프론트엔드에서 사용하는 방법:**
+            ```javascript
+            async function refreshToken() {
+                const response = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    console.log('토큰 갱신 성공');
+                }
+            }
+            ```
+            """,
+        tags = {"인증 관리"}
+    )
+    @PostMapping("/refresh")
+    public ResponseEntity<CommonResponse> refreshToken(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            // 리프레시 토큰 추출
+            String refreshToken = extractTokenFromCookies(request.getCookies(), "refresh_token");
+            
+            if (refreshToken == null || !jwtService.validateToken(refreshToken) || !jwtService.isRefreshToken(refreshToken)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(CommonResponse.fail("유효하지 않은 리프레시 토큰"));
+            }
+            
+            // 사용자 ID 추출
+            String userId = jwtService.getUserIdFromToken(refreshToken);
+            
+            // 새로운 토큰 생성
+            String newAccessToken = jwtService.generateAccessToken(userId, "갱신된사용자");
+            String newRefreshToken = jwtService.generateRefreshToken(userId);
+            
+            // 새로운 쿠키 설정
+            Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(true);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(15 * 60); // 15분
+            
+            Cookie refreshTokenCookie = new Cookie("refresh_token", newRefreshToken);
+            refreshTokenCookie.setHttpOnly(true);
+            refreshTokenCookie.setSecure(true);
+            refreshTokenCookie.setPath("/");
+            refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
+            
+            response.addCookie(accessTokenCookie);
+            response.addCookie(refreshTokenCookie);
+            
+            log.info("토큰 갱신 성공. 사용자 ID: {}", userId);
+            return ResponseEntity.ok(CommonResponse.success("토큰 갱신 성공"));
+            
+        } catch (Exception e) {
+            log.error("토큰 갱신 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(CommonResponse.fail("토큰 갱신 실패"));
+        }
+    }
+    
     private String extractJwtFromCookies(Cookie[] cookies) {
+        return extractTokenFromCookies(cookies, "access_token");
+    }
+    
+    private String extractTokenFromCookies(Cookie[] cookies, String tokenName) {
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if ("jwt".equals(cookie.getName())) {
+                if (tokenName.equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }

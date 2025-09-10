@@ -36,6 +36,33 @@ public class JwtService {
                 .compact();
     }
     
+    public String generateAccessToken(String userId, String nickname) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + 15 * 60 * 1000); // 15분
+        
+        return Jwts.builder()
+                .setSubject(userId)
+                .claim("nickname", nickname)
+                .claim("type", "access")
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+    
+    public String generateRefreshToken(String userId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7일
+        
+        return Jwts.builder()
+                .setSubject(userId)
+                .claim("type", "refresh")
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+    
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
@@ -62,5 +89,22 @@ public class JwtService {
                 .parseClaimsJws(token)
                 .getBody();
         return claims.get("nickname", String.class);
+    }
+    
+    public String getTokenType(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.get("type", String.class);
+    }
+    
+    public boolean isAccessToken(String token) {
+        return "access".equals(getTokenType(token));
+    }
+    
+    public boolean isRefreshToken(String token) {
+        return "refresh".equals(getTokenType(token));
     }
 }
