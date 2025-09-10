@@ -37,10 +37,10 @@ jpa:
             user-name-attribute: id
 jwt:
   secret: "X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111"
-llm:
-  server:
-    host: ${LLM_SERVER_HOST}
-    port: ${LLM_SERVER_PORT}
+# llm:
+#   server:
+#     host: ${LLM_SERVER_HOST}
+#     port: ${LLM_SERVER_PORT}
 cloud:
   aws:
     credentials:

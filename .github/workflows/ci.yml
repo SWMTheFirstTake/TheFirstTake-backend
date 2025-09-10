@@ -111,7 +111,7 @@ jobs:
             echo "=== All JAR files in deploy directory ==="
             ls -la /home/${{ env.SERVER_USER }}/app/deploy/*.jar
             
-                        # 기존 서비스가 있다면 중지합니다.
+            # 기존 서비스가 있다면 중지합니다.
             # '|| true'는 서비스가 실행 중이 아니어도 오류를 발생시키지 않도록 합니다.
             sudo systemctl stop thefirsttake.service || true
             
