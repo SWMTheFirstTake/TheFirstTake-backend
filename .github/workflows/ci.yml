@@ -25,6 +25,10 @@ jobs:
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
       FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
+      # 테스트용 기본값들
+      KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+      KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+      JWT_SECRET:  ${{ secrets.JWT_SECRET }}
 
     steps:
       - name: Checkout code
@@ -68,6 +72,9 @@ jobs:
       AWS_ACCESS_KEY: ${{secrets.AWS_ACCESS_KEY}}
       AWS_SECRET_KEY: ${{secrets.AWS_SECRET_KEY}}
       FITROOM_API_KEY: ${{ secrets.FITROOM_API_KEY }}
+      KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+      KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
     steps:
       - name: Download build artifact
@@ -145,6 +152,9 @@ jobs:
             echo 'Environment="AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'Environment="FITROOM_API_KEY=${{ secrets.FITROOM_API_KEY }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
+            echo 'Environment="JWT_SECRET=${{ secrets.JWT_SECRET }}"' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo '[Install]' | sudo tee -a /etc/systemd/system/thefirsttake.service
             echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/thefirsttake.service
