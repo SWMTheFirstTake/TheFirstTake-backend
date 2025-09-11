@@ -31,15 +31,7 @@ services:
     networks:
       - monitoring
 
-  # Spring Boot 애플리케이션 (로컬에서 실행)
-  # thefirsttake:
-  #   build: ./thefirsttake
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=local
-  #   networks:
-  #     - monitoring
+  
 
 volumes:
   grafana-storage:
