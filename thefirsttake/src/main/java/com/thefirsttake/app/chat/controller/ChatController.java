@@ -18,6 +18,8 @@ import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
@@ -38,14 +40,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.io.IOException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -79,6 +79,9 @@ public class ChatController {
     private final Counter productSearchApiFailureCounter;
     private final Timer productSearchApiResponseTimer;
     
+    // 새로운 전문가별 메트릭
+    private final MeterRegistry meterRegistry;
+    
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
                          ChatQueueService chatQueueService,
                          UserSessionService userSessionService,
@@ -99,7 +102,8 @@ public class ChatController {
                          Counter productSearchApiCallCounter,
                          Counter productSearchApiSuccessCounter,
                          Counter productSearchApiFailureCounter,
-                         Timer productSearchApiResponseTimer) {
+                         Timer productSearchApiResponseTimer,
+                         MeterRegistry meterRegistry) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -121,6 +125,7 @@ public class ChatController {
         this.productSearchApiSuccessCounter = productSearchApiSuccessCounter;
         this.productSearchApiFailureCounter = productSearchApiFailureCounter;
         this.productSearchApiResponseTimer = productSearchApiResponseTimer;
+        this.meterRegistry = meterRegistry;
     }
     
     @Value("${llm.server.expert-stream-url}")
@@ -1206,8 +1211,13 @@ public class ChatController {
 
                         if (cancelled.get()) break;
                         
-                        // LLM API 호출 메트릭
+                        // LLM API 호출 메트릭 (전문가별)
                         llmApiCallCounter.increment();
+                        Counter.builder("llm_api_calls_by_expert_total")
+                                .description("Total number of LLM API calls by expert")
+                                .tag("expert_type", curExpert)
+                                .register(meterRegistry)
+                                .increment();
                         Timer.Sample llmTimer = Timer.start();
                         
                         ResponseEntity<String> response = restTemplate.exchange(
@@ -1218,6 +1228,24 @@ public class ChatController {
                         );
                         
                         llmTimer.stop(llmApiResponseTimer);
+                        
+                        // 상태 코드별 메트릭 추가
+                        Counter.builder("llm_api_status_code_total")
+                                .description("LLM API calls by HTTP status code")
+                                .tag("expert_type", curExpert)
+                                .tag("status_code", String.valueOf(response.getStatusCode().value()))
+                                .register(meterRegistry)
+                                .increment();
+                        
+                        // 응답 크기 메트릭 추가
+                        if (response.getBody() != null) {
+                            DistributionSummary.builder("llm_api_response_size")
+                                    .description("LLM API response size in bytes")
+                                    .baseUnit("bytes")
+                                    .tag("expert_type", curExpert)
+                                    .register(meterRegistry)
+                                    .record(response.getBody().length());
+                        }
 
                         StringBuilder finalText = new StringBuilder();
 
@@ -1666,8 +1694,13 @@ public SseEmitter streamChatMessageAutoRoom(
 
                 if (cancelled.get()) break;
                 
-                // LLM API 호출 메트릭
+                // LLM API 호출 메트릭 (전문가별)
                 llmApiCallCounter.increment();
+                Counter.builder("llm_api_calls_by_expert_total")
+                        .description("Total number of LLM API calls by expert")
+                        .tag("expert_type", curExpert)
+                        .register(meterRegistry)
+                        .increment();
                 Timer.Sample llmTimer = Timer.start();
                 
                 ResponseEntity<String> response = restTemplate.exchange(
@@ -1678,6 +1711,24 @@ public SseEmitter streamChatMessageAutoRoom(
                 );
                 
                 llmTimer.stop(llmApiResponseTimer);
+                
+                // 상태 코드별 메트릭 추가
+                Counter.builder("llm_api_status_code_total")
+                        .description("LLM API calls by HTTP status code")
+                        .tag("expert_type", curExpert)
+                        .tag("status_code", String.valueOf(response.getStatusCode().value()))
+                        .register(meterRegistry)
+                        .increment();
+                
+                // 응답 크기 메트릭 추가
+                if (response.getBody() != null) {
+                    DistributionSummary.builder("llm_api_response_size")
+                            .description("LLM API response size in bytes")
+                            .baseUnit("bytes")
+                            .tag("expert_type", curExpert)
+                            .register(meterRegistry)
+                            .record(response.getBody().length());
+                }
 
                 StringBuilder finalText = new StringBuilder();
 

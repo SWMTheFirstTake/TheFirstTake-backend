@@ -1,6 +1,7 @@
 package com.thefirsttake.app.config;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.context.annotation.Bean;
@@ -121,6 +122,37 @@ public class MetricsConfig {
     public Timer productSearchApiResponseTimer(MeterRegistry meterRegistry) {
         return Timer.builder("product_search_api_response_duration")
                 .description("Product search API response time")
+                .register(meterRegistry);
+    }
+    
+    // ===== LLM API 전문가별 메트릭 =====
+    
+    @Bean
+    public Counter llmApiCallCounterByExpert(MeterRegistry meterRegistry) {
+        return Counter.builder("llm_api_calls_by_expert_total")
+                .description("Total number of LLM API calls by expert")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter llmApiStatusCodeCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("llm_api_status_code_total")
+                .description("LLM API calls by HTTP status code")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public DistributionSummary llmApiResponseSizeSummary(MeterRegistry meterRegistry) {
+        return DistributionSummary.builder("llm_api_response_size")
+                .description("LLM API response size in bytes")
+                .baseUnit("bytes")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter llmApiRetryCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("llm_api_retries_total")
+                .description("Total number of LLM API retries")
                 .register(meterRegistry);
     }
     
