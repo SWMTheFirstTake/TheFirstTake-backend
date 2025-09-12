@@ -98,3 +98,12 @@ management:
     export:
       prometheus:
         enabled: true
+    distribution:
+      percentiles-histogram:
+        jvm.memory.used: true
+        jvm.gc.pause: true
+        sse.api.total.response.duration: true
+        sse.api.memory.usage.bytes: true
+    tags:
+      application: thefirsttake
+      service: chat-api

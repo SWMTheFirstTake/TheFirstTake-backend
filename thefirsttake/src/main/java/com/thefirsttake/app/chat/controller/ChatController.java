@@ -88,6 +88,11 @@ public class ChatController {
     private final Counter sseApiSuccessCounter;
     private final Counter sseApiFailureCounter;
     
+    // Stream API 메모리 모니터링 메트릭
+    private final DistributionSummary sseApiMemoryUsageSummary;
+    private final Counter sseApiMemoryPeakCounter;
+    private final Timer sseApiGcDurationTimer;
+    
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
                          ChatQueueService chatQueueService,
                          UserSessionService userSessionService,
@@ -113,7 +118,10 @@ public class ChatController {
                          Timer sseApiTotalResponseTimer,
                          Counter sseApiTotalCounter,
                          Counter sseApiSuccessCounter,
-                         Counter sseApiFailureCounter) {
+                         Counter sseApiFailureCounter,
+                         DistributionSummary sseApiMemoryUsageSummary,
+                         Counter sseApiMemoryPeakCounter,
+                         Timer sseApiGcDurationTimer) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -140,10 +148,39 @@ public class ChatController {
         this.sseApiTotalCounter = sseApiTotalCounter;
         this.sseApiSuccessCounter = sseApiSuccessCounter;
         this.sseApiFailureCounter = sseApiFailureCounter;
+        this.sseApiMemoryUsageSummary = sseApiMemoryUsageSummary;
+        this.sseApiMemoryPeakCounter = sseApiMemoryPeakCounter;
+        this.sseApiGcDurationTimer = sseApiGcDurationTimer;
     }
     
     @Value("${llm.server.expert-stream-url}")
     private String llmExpertStreamUrl;
+    
+    /**
+     * 현재 JVM 메모리 사용량 측정 및 메트릭 기록
+     */
+    private void recordMemoryUsage() {
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+            long maxMemory = runtime.maxMemory();
+            
+            // 메모리 사용량 기록
+            sseApiMemoryUsageSummary.record(usedMemory);
+            
+            // 메모리 사용률이 80% 이상이면 피크 카운터 증가
+            double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
+            if (memoryUsagePercent > 80.0) {
+                sseApiMemoryPeakCounter.increment();
+                log.warn("High memory usage detected: {}% ({}MB/{}MB)", 
+                    String.format("%.1f", memoryUsagePercent),
+                    usedMemory / 1024 / 1024,
+                    maxMemory / 1024 / 1024);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to record memory usage: {}", e.getMessage());
+        }
+    }
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -1179,6 +1216,9 @@ public class ChatController {
 
         java.util.concurrent.CompletableFuture.runAsync(() -> {
                 try {
+                // 메모리 사용량 측정 시작
+                recordMemoryUsage();
+                
                 // 사용자 메시지를 먼저 DB에 저장 (세션 ID 기반으로 사용자 생성/조회)
                 try {
                         log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", roomId, userInput, finalSession.getId());
@@ -1213,6 +1253,10 @@ public class ChatController {
 
                 for (String curExpert : expertList) {
                         if (cancelled.get()) break;
+                        
+                        // 각 전문가 처리 전 메모리 측정
+                        recordMemoryUsage();
+                        
                         Map<String, Object> expertRequest = new HashMap<>();
                         expertRequest.put("user_input", userInput);
                         expertRequest.put("expert_type", curExpert);
@@ -1680,6 +1724,9 @@ public SseEmitter streamChatMessageAutoRoom(
 
     java.util.concurrent.CompletableFuture.runAsync(() -> {
         try {
+            // 메모리 사용량 측정 시작
+            recordMemoryUsage();
+            
             // 사용자 메시지를 먼저 DB에 저장 (세션 ID 기반으로 사용자 생성/조회)
             try {
                 log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", resolvedRoomId, userInput, finalSession.getId());
@@ -1712,6 +1759,9 @@ public SseEmitter streamChatMessageAutoRoom(
 
             for (String curExpert : expertList) {
                 if (cancelled.get()) break;
+                
+                // 각 전문가 처리 전 메모리 측정
+                recordMemoryUsage();
                 
                 Map<String, Object> expertRequest = new HashMap<>();
                 expertRequest.put("user_input", userInput);

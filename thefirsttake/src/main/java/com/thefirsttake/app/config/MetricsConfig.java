@@ -186,4 +186,28 @@ public class MetricsConfig {
                 .register(meterRegistry);
     }
     
+    // ===== Stream API 메모리 모니터링 메트릭 =====
+    
+    @Bean
+    public DistributionSummary sseApiMemoryUsageSummary(MeterRegistry meterRegistry) {
+        return DistributionSummary.builder("sse_api_memory_usage_bytes")
+                .description("Memory usage during SSE API processing")
+                .baseUnit("bytes")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseApiMemoryPeakCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_api_memory_peak_total")
+                .description("Number of times memory usage peaked during SSE processing")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Timer sseApiGcDurationTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("sse_api_gc_duration")
+                .description("GC duration during SSE API processing")
+                .register(meterRegistry);
+    }
+    
 }
