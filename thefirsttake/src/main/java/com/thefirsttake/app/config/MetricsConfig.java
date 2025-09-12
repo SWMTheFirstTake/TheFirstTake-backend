@@ -156,4 +156,34 @@ public class MetricsConfig {
                 .register(meterRegistry);
     }
     
+    // ===== SSE API 전체 응답 시간 메트릭 =====
+    
+    @Bean
+    public Timer sseApiTotalResponseTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("sse_api_total_response_duration")
+                .description("Total SSE API response time from start to complete")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseApiTotalCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_api_total_requests")
+                .description("Total number of SSE API requests")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseApiSuccessCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_api_success_total")
+                .description("Total number of successful SSE API completions")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseApiFailureCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_api_failure_total")
+                .description("Total number of failed SSE API requests")
+                .register(meterRegistry);
+    }
+    
 }

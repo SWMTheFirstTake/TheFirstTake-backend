@@ -82,6 +82,12 @@ public class ChatController {
     // 새로운 전문가별 메트릭
     private final MeterRegistry meterRegistry;
     
+    // SSE API 전체 응답 시간 메트릭
+    private final Timer sseApiTotalResponseTimer;
+    private final Counter sseApiTotalCounter;
+    private final Counter sseApiSuccessCounter;
+    private final Counter sseApiFailureCounter;
+    
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
                          ChatQueueService chatQueueService,
                          UserSessionService userSessionService,
@@ -103,7 +109,11 @@ public class ChatController {
                          Counter productSearchApiSuccessCounter,
                          Counter productSearchApiFailureCounter,
                          Timer productSearchApiResponseTimer,
-                         MeterRegistry meterRegistry) {
+                         MeterRegistry meterRegistry,
+                         Timer sseApiTotalResponseTimer,
+                         Counter sseApiTotalCounter,
+                         Counter sseApiSuccessCounter,
+                         Counter sseApiFailureCounter) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -126,6 +136,10 @@ public class ChatController {
         this.productSearchApiFailureCounter = productSearchApiFailureCounter;
         this.productSearchApiResponseTimer = productSearchApiResponseTimer;
         this.meterRegistry = meterRegistry;
+        this.sseApiTotalResponseTimer = sseApiTotalResponseTimer;
+        this.sseApiTotalCounter = sseApiTotalCounter;
+        this.sseApiSuccessCounter = sseApiSuccessCounter;
+        this.sseApiFailureCounter = sseApiFailureCounter;
     }
     
     @Value("${llm.server.expert-stream-url}")
@@ -1118,6 +1132,10 @@ public class ChatController {
         final SseEmitter emitter = new SseEmitter(300000L);
         final AtomicBoolean cancelled = new AtomicBoolean(false);
 
+        // SSE API 전체 응답 시간 측정 시작
+        sseApiTotalCounter.increment();
+        Timer.Sample totalResponseTimer = Timer.start();
+        
         // SSE 연결 메트릭
         sseConnectionCounter.increment();
         Timer.Sample connectionTimer = Timer.start();
@@ -1126,16 +1144,22 @@ public class ChatController {
         emitter.onCompletion(() -> {
                 cancelled.set(true);
                 connectionTimer.stop(sseConnectionDurationTimer);
+                totalResponseTimer.stop(sseApiTotalResponseTimer);
+                sseApiSuccessCounter.increment();
                 sseDisconnectionCounter.increment();
         });
         emitter.onTimeout(() -> {
                 cancelled.set(true);
                 connectionTimer.stop(sseConnectionDurationTimer);
+                totalResponseTimer.stop(sseApiTotalResponseTimer);
+                sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
         });
         emitter.onError(e -> {
                 cancelled.set(true);
                 connectionTimer.stop(sseConnectionDurationTimer);
+                totalResponseTimer.stop(sseApiTotalResponseTimer);
+                sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
         });
 
@@ -1574,6 +1598,10 @@ public SseEmitter streamChatMessageAutoRoom(
     final SseEmitter emitter = new SseEmitter(300000L);
     final AtomicBoolean cancelled = new AtomicBoolean(false);
     
+    // SSE API 전체 응답 시간 측정 시작
+    sseApiTotalCounter.increment();
+    Timer.Sample totalResponseTimer = Timer.start();
+    
     // SSE 연결 메트릭
     sseConnectionCounter.increment();
     Timer.Sample connectionTimer = Timer.start();
@@ -1582,16 +1610,22 @@ public SseEmitter streamChatMessageAutoRoom(
     emitter.onCompletion(() -> {
         cancelled.set(true);
         connectionTimer.stop(sseConnectionDurationTimer);
+        totalResponseTimer.stop(sseApiTotalResponseTimer);
+        sseApiSuccessCounter.increment();
         sseDisconnectionCounter.increment();
     });
     emitter.onTimeout(() -> {
         cancelled.set(true);
         connectionTimer.stop(sseConnectionDurationTimer);
+        totalResponseTimer.stop(sseApiTotalResponseTimer);
+        sseApiFailureCounter.increment();
         sseDisconnectionCounter.increment();
     });
     emitter.onError(e -> {
         cancelled.set(true);
         connectionTimer.stop(sseConnectionDurationTimer);
+        totalResponseTimer.stop(sseApiTotalResponseTimer);
+        sseApiFailureCounter.increment();
         sseDisconnectionCounter.increment();
     });
 
@@ -1620,6 +1654,8 @@ public SseEmitter streamChatMessageAutoRoom(
             emitter.send(SseEmitter.event().name("error").data("방 준비 중 오류: " + e.getMessage()));
         } catch (IOException ignored) {}
         connectionTimer.stop(sseConnectionDurationTimer);
+        totalResponseTimer.stop(sseApiTotalResponseTimer);
+        sseApiFailureCounter.increment();
         sseDisconnectionCounter.increment();
         emitter.complete();
         return emitter;
