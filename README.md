@@ -552,6 +552,33 @@ SSE 이벤트 전송 (connect, content, complete, error)
 
 ## 🔧 최근 업데이트 사항
 
+### v1.9.0 (2024-01-28) - SSE 커넥션 모니터링 및 최적화 시스템 구축
+- **SSE 커넥션 풀 최적화를 위한 모니터링 시스템**:
+  - SSE 연결 생명주기 추적 및 메트릭 수집
+  - 연결당 메모리 사용량 측정 및 분석
+  - 커넥션 풀 효율성 지표 수집 (히트율, 미스율)
+  - 연결 생성/종료/타임아웃/에러 상세 추적
+- **새로운 SSE 커넥션 메트릭**:
+  - `sse_connections_total`: SSE 연결 총 생성 횟수
+  - `sse_connections_active`: 현재 활성 SSE 연결 수
+  - `sse_connection_lifetime`: SSE 연결 생명주기 시간
+  - `sse_connection_memory_usage_bytes`: 연결당 메모리 사용량
+  - `sse_connection_pool_hits_total`: 커넥션 풀 히트 횟수
+  - `sse_connection_pool_misses_total`: 커넥션 풀 미스 횟수
+  - `sse_connection_creation_duration`: 커넥션 생성 시간
+  - `sse_connection_timeouts_total`: 타임아웃 발생 횟수
+  - `sse_connection_errors_total`: 에러 발생 횟수
+- **메모리 모니터링 강화**:
+  - SSE API 처리 중 실시간 메모리 사용량 측정
+  - 메모리 피크 발생 시 자동 경고 로그
+  - JVM 힙 메모리와 SSE 연결 수 상관관계 분석
+  - GC 발생 빈도와 SSE 연결 패턴 연관성 추적
+- **프로메테우스/그라파나 연동**:
+  - SSE 커넥션 최적화 전용 알림 규칙 설정
+  - 메모리 사용률 임계값 기반 자동 알림
+  - 커넥션 풀 효율성 모니터링 대시보드
+  - 부하 테스트 시나리오별 성능 지표 수집
+
 ### v1.8.0 (2024-01-27) - 카카오 OAuth 로그인 시스템 구축
 - **카카오 OAuth 로그인 구현**:
   - HttpOnly 쿠키 기반 보안 인증 시스템
@@ -741,6 +768,17 @@ cd thefirsttake
 - `sse_connections_total`: SSE 연결 총 횟수
 - `sse_disconnections_total`: SSE 연결 해제 총 횟수
 - `sse_connection_duration`: SSE 연결 지속 시간
+- `sse_api_total_response_duration`: SSE API 전체 응답 시간
+- `sse_api_memory_usage_bytes`: SSE API 메모리 사용량
+- `sse_api_memory_peak_total`: 메모리 피크 발생 횟수
+- `sse_connections_active`: 현재 활성 SSE 연결 수
+- `sse_connection_lifetime`: SSE 연결 생명주기 시간
+- `sse_connection_memory_usage_bytes`: 연결당 메모리 사용량
+- `sse_connection_pool_hits_total`: 커넥션 풀 히트 횟수
+- `sse_connection_pool_misses_total`: 커넥션 풀 미스 횟수
+- `sse_connection_creation_duration`: 커넥션 생성 시간
+- `sse_connection_timeouts_total`: 타임아웃 발생 횟수
+- `sse_connection_errors_total`: 에러 발생 횟수
 - `llm_api_calls_total`: 외부 LLM API 호출 총 횟수
 - `llm_api_success_total`: LLM API 호출 성공 횟수
 - `llm_api_failure_total`: LLM API 호출 실패 횟수
@@ -796,6 +834,35 @@ cd TheFirstTake-backend/thefirsttake
 - **API 호출 로그**: 상품 검색 API 호출 결과 및 이미지 URL 처리 로그
 - **에러 추적**: 상세한 에러 로그 및 스택 트레이스
 - **메시지 저장 로그**: AI 응답 및 상품 이미지 저장 상태 추적
+- **SSE 커넥션 모니터링**: 실시간 연결 상태 및 메모리 사용량 추적
+- **성능 메트릭**: Prometheus 기반 상세 성능 지표 수집
+- **알림 시스템**: 메모리 사용률 및 커넥션 풀 효율성 기반 자동 알림
+
+### 🔍 SSE 커넥션 최적화 모니터링
+
+#### 핵심 지표
+- **연결당 메모리 사용량**: SSE 연결 1개당 평균 메모리 소비량
+- **커넥션 풀 효율성**: 히트율/미스율을 통한 연결 재사용 패턴 분석
+- **메모리 피크 추적**: 80% 이상 메모리 사용 시 자동 경고
+- **GC 패턴 분석**: SSE 연결과 가비지 컬렉션 발생 빈도 상관관계
+
+#### 부하 테스트 시나리오
+```bash
+# SSE 연결 100개 생성하여 메모리 영향도 측정
+for i in {1..100}; do
+  curl -N "http://localhost:8000/api/chat/rooms/$i/messages/stream?user_input=테스트" &
+done
+
+# 30초 후 메트릭 확인
+curl -s "http://localhost:9090/api/v1/query?query=sse_connections_active"
+curl -s "http://localhost:9090/api/v1/query?query=jvm_memory_used_bytes{area=\"heap\"}"
+```
+
+#### 최적화 목표
+- **연결당 메모리**: 0.5MB → 0.1MB (80% 감소)
+- **최대 동시 연결**: 1,000개 → 10,000개 (10배 증가)
+- **커넥션 생성 시간**: 200ms → 50ms (75% 감소)
+- **커넥션 풀 히트율**: 0% → 80% (80% 증가)
 
 ## 🔍 주요 기술적 특징
 
@@ -814,6 +881,8 @@ cd TheFirstTake-backend/thefirsttake
 - **무한 스크롤**: 페이지네이션을 통한 메모리 효율적인 메시지 조회
 - **Redis 큐**: 비동기 메시지 처리로 응답 속도 향상
 - **S3 이미지 저장**: CDN을 통한 빠른 이미지 로딩
+- **SSE 커넥션 모니터링**: 실시간 연결 상태 추적으로 메모리 효율성 향상
+- **메트릭 기반 최적화**: Prometheus 지표를 통한 데이터 기반 성능 개선
 
 ## 🤝 기여하기
 
