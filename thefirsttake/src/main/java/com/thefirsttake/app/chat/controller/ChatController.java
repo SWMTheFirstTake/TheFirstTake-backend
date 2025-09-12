@@ -19,6 +19,8 @@ import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -59,6 +61,9 @@ public class ChatController {
     
     // ObjectMapper 싱글톤으로 메모리 최적화
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    
+    // SSE 연결별 메모리 추적을 위한 맵
+    private final Map<String, Long> connectionMemoryMap = new ConcurrentHashMap<>();
     
     private final ChatCurationOrchestrationService chatCurationOrchestrationService;
     private final ChatQueueService chatQueueService;
@@ -219,16 +224,22 @@ public class ChatController {
     /**
      * SSE 커넥션 생성 시 메트릭 기록
      */
-    private Timer.Sample startSSEConnectionTracking() {
+    private Timer.Sample startSSEConnectionTracking(String connectionId) {
         // SSE 커넥션 생성 시작
         Timer.Sample connectionCreationTimer = Timer.start();
         sseConnectionsTotalCounter.increment();
         sseConnectionsActiveGauge.increment();
         sseConnectionPoolMissesCounter.increment(); // 현재는 풀 없으므로 항상 miss
         
-        log.info("SSE connection created. Total: {}, Active: {}", 
+        // 연결 시작 시점의 메모리 기록
+        Runtime runtime = Runtime.getRuntime();
+        long startMemory = runtime.totalMemory() - runtime.freeMemory();
+        connectionMemoryMap.put(connectionId, startMemory);
+        
+        log.info("SSE connection created. Total: {}, Active: {}, Start Memory: {}MB", 
             sseConnectionsTotalCounter.count(), 
-            sseConnectionsActiveGauge.count());
+            sseConnectionsActiveGauge.count(),
+            startMemory / 1024 / 1024);
         
         return connectionCreationTimer;
     }
@@ -236,7 +247,7 @@ public class ChatController {
     /**
      * SSE 커넥션 종료 시 메트릭 기록
      */
-    private void endSSEConnectionTracking(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason) {
+    private void endSSEConnectionTracking(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason, String connectionId) {
         try {
             // 커넥션 생성 시간 기록
             connectionCreationTimer.stop(sseConnectionCreationTimer);
@@ -244,13 +255,20 @@ public class ChatController {
             // 커넥션 생명주기 시간 기록
             lifetimeTimer.stop(sseConnectionLifetimeTimer);
             
-            // 연결당 메모리 사용량 계산 및 기록 (활성 커넥션 수 감소 전에)
+            // 연결별 실제 메모리 사용량 계산
             Runtime runtime = Runtime.getRuntime();
-            long currentMemory = runtime.totalMemory() - runtime.freeMemory();
-            long activeConnections = (long) sseConnectionsActiveGauge.count();
-            if (activeConnections > 0) {
-                long memoryPerConnection = currentMemory / activeConnections;
-                sseConnectionMemoryUsageSummary.record(memoryPerConnection);
+            long endMemory = runtime.totalMemory() - runtime.freeMemory();
+            Long startMemory = connectionMemoryMap.remove(connectionId);
+            
+            if (startMemory != null) {
+                // 연결 시작과 종료 시점의 메모리 차이로 실제 사용량 계산
+                long actualMemoryUsed = Math.max(0, endMemory - startMemory);
+                sseConnectionMemoryUsageSummary.record(actualMemoryUsed);
+                
+                log.info("SSE connection ended. Reason: {}, Connection Memory Used: {}KB", 
+                    reason, actualMemoryUsed / 1024);
+            } else {
+                log.warn("SSE connection start memory not found for connection: {}", connectionId);
             }
             
             // 활성 커넥션 수 감소
@@ -270,10 +288,8 @@ public class ChatController {
                     break;
             }
             
-            log.info("SSE connection ended. Reason: {}, Active: {}, Memory per connection: {}KB", 
-                reason, 
-                sseConnectionsActiveGauge.count(),
-                activeConnections > 0 ? (currentMemory / activeConnections / 1024) : 0);
+            log.info("SSE connection ended. Reason: {}, Active: {}", 
+                reason, sseConnectionsActiveGauge.count());
                 
         } catch (Exception e) {
             log.warn("Failed to record SSE connection end metrics: {}", e.getMessage());
@@ -1268,7 +1284,8 @@ public class ChatController {
         final AtomicBoolean cancelled = new AtomicBoolean(false);
 
         // SSE 커넥션 추적 시작
-        Timer.Sample connectionCreationTimer = startSSEConnectionTracking();
+        String connectionId = "sse_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
+        Timer.Sample connectionCreationTimer = startSSEConnectionTracking(connectionId);
         Timer.Sample connectionLifetimeTimer = Timer.start();
         
         // SSE API 전체 응답 시간 측정 시작
@@ -1286,7 +1303,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiSuccessCounter.increment();
                 sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion");
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
         });
         emitter.onTimeout(() -> {
                 cancelled.set(true);
@@ -1294,7 +1311,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout");
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
         });
         emitter.onError(e -> {
                 cancelled.set(true);
@@ -1302,7 +1319,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error");
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
         });
 
         try {
@@ -1747,6 +1764,11 @@ public SseEmitter streamChatMessageAutoRoom(
     final SseEmitter emitter = new SseEmitter(300000L);
     final AtomicBoolean cancelled = new AtomicBoolean(false);
     
+    // SSE 커넥션 추적 시작
+    String connectionId = "sse_auto_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
+    Timer.Sample connectionCreationTimer = startSSEConnectionTracking(connectionId);
+    Timer.Sample connectionLifetimeTimer = Timer.start();
+    
     // SSE API 전체 응답 시간 측정 시작
     sseApiTotalCounter.increment();
     Timer.Sample totalResponseTimer = Timer.start();
@@ -1762,6 +1784,7 @@ public SseEmitter streamChatMessageAutoRoom(
         totalResponseTimer.stop(sseApiTotalResponseTimer);
         sseApiSuccessCounter.increment();
         sseDisconnectionCounter.increment();
+        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
     });
     emitter.onTimeout(() -> {
         cancelled.set(true);
@@ -1769,6 +1792,7 @@ public SseEmitter streamChatMessageAutoRoom(
         totalResponseTimer.stop(sseApiTotalResponseTimer);
         sseApiFailureCounter.increment();
         sseDisconnectionCounter.increment();
+        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
     });
     emitter.onError(e -> {
         cancelled.set(true);
@@ -1776,6 +1800,7 @@ public SseEmitter streamChatMessageAutoRoom(
         totalResponseTimer.stop(sseApiTotalResponseTimer);
         sseApiFailureCounter.increment();
         sseDisconnectionCounter.increment();
+        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
     });
 
     Long finalRoomId = roomId;
