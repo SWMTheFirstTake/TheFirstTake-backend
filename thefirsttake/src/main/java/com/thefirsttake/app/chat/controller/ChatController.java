@@ -239,6 +239,15 @@ public class ChatController {
             // 커넥션 생명주기 시간 기록
             lifetimeTimer.stop(sseConnectionLifetimeTimer);
             
+            // 연결당 메모리 사용량 계산 및 기록 (활성 커넥션 수 감소 전에)
+            Runtime runtime = Runtime.getRuntime();
+            long currentMemory = runtime.totalMemory() - runtime.freeMemory();
+            long activeConnections = (long) sseConnectionsActiveGauge.count();
+            if (activeConnections > 0) {
+                long memoryPerConnection = currentMemory / activeConnections;
+                sseConnectionMemoryUsageSummary.record(memoryPerConnection);
+            }
+            
             // 활성 커넥션 수 감소
             sseConnectionsActiveGauge.increment(-1);
             
@@ -254,15 +263,6 @@ public class ChatController {
                 default:
                     // 정상 완료는 별도 카운터 없음
                     break;
-            }
-            
-            // 연결당 메모리 사용량 계산 및 기록
-            Runtime runtime = Runtime.getRuntime();
-            long currentMemory = runtime.totalMemory() - runtime.freeMemory();
-            long activeConnections = (long) sseConnectionsActiveGauge.count();
-            if (activeConnections > 0) {
-                long memoryPerConnection = currentMemory / activeConnections;
-                sseConnectionMemoryUsageSummary.record(memoryPerConnection);
             }
             
             log.info("SSE connection ended. Reason: {}, Active: {}, Memory per connection: {}KB", 
