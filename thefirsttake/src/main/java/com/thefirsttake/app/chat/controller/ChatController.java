@@ -93,6 +93,17 @@ public class ChatController {
     private final Counter sseApiMemoryPeakCounter;
     private final Timer sseApiGcDurationTimer;
     
+    // SSE 커넥션 풀 최적화 메트릭
+    private final Counter sseConnectionsTotalCounter;
+    private final Counter sseConnectionsActiveGauge;
+    private final Timer sseConnectionLifetimeTimer;
+    private final DistributionSummary sseConnectionMemoryUsageSummary;
+    private final Counter sseConnectionPoolHitsCounter;
+    private final Counter sseConnectionPoolMissesCounter;
+    private final Timer sseConnectionCreationTimer;
+    private final Counter sseConnectionTimeoutCounter;
+    private final Counter sseConnectionErrorCounter;
+    
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
                          ChatQueueService chatQueueService,
                          UserSessionService userSessionService,
@@ -121,7 +132,16 @@ public class ChatController {
                          Counter sseApiFailureCounter,
                          DistributionSummary sseApiMemoryUsageSummary,
                          Counter sseApiMemoryPeakCounter,
-                         Timer sseApiGcDurationTimer) {
+                         Timer sseApiGcDurationTimer,
+                         Counter sseConnectionsTotalCounter,
+                         Counter sseConnectionsActiveGauge,
+                         Timer sseConnectionLifetimeTimer,
+                         DistributionSummary sseConnectionMemoryUsageSummary,
+                         Counter sseConnectionPoolHitsCounter,
+                         Counter sseConnectionPoolMissesCounter,
+                         Timer sseConnectionCreationTimer,
+                         Counter sseConnectionTimeoutCounter,
+                         Counter sseConnectionErrorCounter) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -151,6 +171,15 @@ public class ChatController {
         this.sseApiMemoryUsageSummary = sseApiMemoryUsageSummary;
         this.sseApiMemoryPeakCounter = sseApiMemoryPeakCounter;
         this.sseApiGcDurationTimer = sseApiGcDurationTimer;
+        this.sseConnectionsTotalCounter = sseConnectionsTotalCounter;
+        this.sseConnectionsActiveGauge = sseConnectionsActiveGauge;
+        this.sseConnectionLifetimeTimer = sseConnectionLifetimeTimer;
+        this.sseConnectionMemoryUsageSummary = sseConnectionMemoryUsageSummary;
+        this.sseConnectionPoolHitsCounter = sseConnectionPoolHitsCounter;
+        this.sseConnectionPoolMissesCounter = sseConnectionPoolMissesCounter;
+        this.sseConnectionCreationTimer = sseConnectionCreationTimer;
+        this.sseConnectionTimeoutCounter = sseConnectionTimeoutCounter;
+        this.sseConnectionErrorCounter = sseConnectionErrorCounter;
     }
     
     @Value("${llm.server.expert-stream-url}")
@@ -179,6 +208,70 @@ public class ChatController {
             }
         } catch (Exception e) {
             log.warn("Failed to record memory usage: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * SSE 커넥션 생성 시 메트릭 기록
+     */
+    private Timer.Sample startSSEConnectionTracking() {
+        // SSE 커넥션 생성 시작
+        Timer.Sample connectionCreationTimer = Timer.start();
+        sseConnectionsTotalCounter.increment();
+        sseConnectionsActiveGauge.increment();
+        sseConnectionPoolMissesCounter.increment(); // 현재는 풀 없으므로 항상 miss
+        
+        log.info("SSE connection created. Total: {}, Active: {}", 
+            sseConnectionsTotalCounter.count(), 
+            sseConnectionsActiveGauge.count());
+        
+        return connectionCreationTimer;
+    }
+    
+    /**
+     * SSE 커넥션 종료 시 메트릭 기록
+     */
+    private void endSSEConnectionTracking(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason) {
+        try {
+            // 커넥션 생성 시간 기록
+            connectionCreationTimer.stop(sseConnectionCreationTimer);
+            
+            // 커넥션 생명주기 시간 기록
+            lifetimeTimer.stop(sseConnectionLifetimeTimer);
+            
+            // 활성 커넥션 수 감소
+            sseConnectionsActiveGauge.increment(-1);
+            
+            // 종료 이유별 카운터 증가
+            switch (reason) {
+                case "timeout":
+                    sseConnectionTimeoutCounter.increment();
+                    break;
+                case "error":
+                    sseConnectionErrorCounter.increment();
+                    break;
+                case "completion":
+                default:
+                    // 정상 완료는 별도 카운터 없음
+                    break;
+            }
+            
+            // 연결당 메모리 사용량 계산 및 기록
+            Runtime runtime = Runtime.getRuntime();
+            long currentMemory = runtime.totalMemory() - runtime.freeMemory();
+            long activeConnections = (long) sseConnectionsActiveGauge.count();
+            if (activeConnections > 0) {
+                long memoryPerConnection = currentMemory / activeConnections;
+                sseConnectionMemoryUsageSummary.record(memoryPerConnection);
+            }
+            
+            log.info("SSE connection ended. Reason: {}, Active: {}, Memory per connection: {}KB", 
+                reason, 
+                sseConnectionsActiveGauge.count(),
+                activeConnections > 0 ? (currentMemory / activeConnections / 1024) : 0);
+                
+        } catch (Exception e) {
+            log.warn("Failed to record SSE connection end metrics: {}", e.getMessage());
         }
     }
     @Operation(
@@ -1169,11 +1262,15 @@ public class ChatController {
         final SseEmitter emitter = new SseEmitter(300000L);
         final AtomicBoolean cancelled = new AtomicBoolean(false);
 
+        // SSE 커넥션 추적 시작
+        Timer.Sample connectionCreationTimer = startSSEConnectionTracking();
+        Timer.Sample connectionLifetimeTimer = Timer.start();
+        
         // SSE API 전체 응답 시간 측정 시작
         sseApiTotalCounter.increment();
         Timer.Sample totalResponseTimer = Timer.start();
         
-        // SSE 연결 메트릭
+        // SSE 연결 메트릭 (기존)
         sseConnectionCounter.increment();
         Timer.Sample connectionTimer = Timer.start();
 
@@ -1184,6 +1281,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiSuccessCounter.increment();
                 sseDisconnectionCounter.increment();
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion");
         });
         emitter.onTimeout(() -> {
                 cancelled.set(true);
@@ -1191,6 +1289,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout");
         });
         emitter.onError(e -> {
                 cancelled.set(true);
@@ -1198,6 +1297,7 @@ public class ChatController {
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseApiFailureCounter.increment();
                 sseDisconnectionCounter.increment();
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error");
         });
 
         try {

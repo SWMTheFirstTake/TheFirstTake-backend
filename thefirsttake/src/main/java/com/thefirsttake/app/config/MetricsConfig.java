@@ -210,4 +210,70 @@ public class MetricsConfig {
                 .register(meterRegistry);
     }
     
+    // ===== SSE 커넥션 풀 최적화 지표 =====
+    
+    @Bean
+    public Counter sseConnectionsTotalCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connections_total")
+                .description("Total number of SSE connections created")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseConnectionsActiveGauge(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connections_active")
+                .description("Current number of active SSE connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Timer sseConnectionLifetimeTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("sse_connection_lifetime")
+                .description("SSE connection lifetime from creation to completion")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public DistributionSummary sseConnectionMemoryUsageSummary(MeterRegistry meterRegistry) {
+        return DistributionSummary.builder("sse_connection_memory_usage_bytes")
+                .description("Memory usage per SSE connection")
+                .baseUnit("bytes")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseConnectionPoolHitsCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connection_pool_hits_total")
+                .description("Number of times SSE connection was reused from pool")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseConnectionPoolMissesCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connection_pool_misses_total")
+                .description("Number of times new SSE connection was created")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Timer sseConnectionCreationTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("sse_connection_creation_duration")
+                .description("Time taken to create new SSE connection")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseConnectionTimeoutCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connection_timeouts_total")
+                .description("Number of SSE connections that timed out")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter sseConnectionErrorCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("sse_connection_errors_total")
+                .description("Number of SSE connections that ended with errors")
+                .register(meterRegistry);
+    }
+    
 }
