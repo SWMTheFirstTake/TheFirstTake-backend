@@ -17,6 +17,7 @@ import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -55,6 +56,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequestMapping("/api/chat")
 @Slf4j
 public class ChatController {
+    
+    // ObjectMapper 싱글톤으로 메모리 최적화
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    
     private final ChatCurationOrchestrationService chatCurationOrchestrationService;
     private final ChatQueueService chatQueueService;
     private final UserSessionService userSessionService;
@@ -1308,7 +1313,7 @@ public class ChatController {
                 connectData.put("timestamp", System.currentTimeMillis());
                 
                 CommonResponse connectResponse = CommonResponse.success(connectData);
-                String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(connectResponse);
+                String json = OBJECT_MAPPER.writeValueAsString(connectResponse);
                 emitter.send(SseEmitter.event().name("connect").data(json));
         } catch (IOException e) {
                 log.warn("초기 SSE 메시지 전송 실패", e);
@@ -1428,7 +1433,7 @@ public class ChatController {
                                 String jsonData = line.substring(5).trim();
                                 if (jsonData.isEmpty()) continue;
                                 try {
-                                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                                        ObjectMapper mapper = OBJECT_MAPPER;
                                         @SuppressWarnings("unchecked")
                                         Map<String, Object> parsed = mapper.readValue(jsonData, Map.class);
                                         Object type = parsed.get("type");
@@ -1445,7 +1450,7 @@ public class ChatController {
                                         contentPayload.put("timestamp", System.currentTimeMillis());
                                         
                                         CommonResponse contentResponse = CommonResponse.success(contentPayload);
-                                        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(contentResponse);
+                                        String json = OBJECT_MAPPER.writeValueAsString(contentResponse);
                                         emitter.send(SseEmitter.event().name("content").data(json));
                                         try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
                                         }
@@ -1542,7 +1547,7 @@ public class ChatController {
                         if (!cancelled.get()) {
                         // complete 이벤트를 CommonResponse 형식으로 변경 (SSE 이벤트 자체를 CommonResponse로)
                         CommonResponse completeResponse = CommonResponse.success(completePayload);
-                        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(completeResponse);
+                        String json = OBJECT_MAPPER.writeValueAsString(completeResponse);
                         emitter.send(SseEmitter.event().name("complete").data(json));
                         }
                 }
@@ -1790,7 +1795,7 @@ public SseEmitter streamChatMessageAutoRoom(
         roomData.put("timestamp", System.currentTimeMillis());
         
         CommonResponse roomResponse = CommonResponse.success(roomData);
-        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(roomResponse);
+        String json = OBJECT_MAPPER.writeValueAsString(roomResponse);
         emitter.send(SseEmitter.event().name("room").data(json));
 
     } catch (Exception e) {
@@ -1816,7 +1821,7 @@ public SseEmitter streamChatMessageAutoRoom(
         connectData.put("timestamp", System.currentTimeMillis());
         
         CommonResponse connectResponse = CommonResponse.success(connectData);
-        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(connectResponse);
+        String json = OBJECT_MAPPER.writeValueAsString(connectResponse);
         emitter.send(SseEmitter.event().name("connect").data(json));
     } catch (IOException e) {
         log.warn("초기 SSE 메시지 전송 실패", e);
@@ -1929,7 +1934,7 @@ public SseEmitter streamChatMessageAutoRoom(
                             String jsonData = line.substring(5).trim();
                             if (jsonData.isEmpty()) continue;
                             try {
-                                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                                ObjectMapper mapper = OBJECT_MAPPER;
                                 @SuppressWarnings("unchecked")
                                 Map<String, Object> parsed = mapper.readValue(jsonData, Map.class);
                                 Object type = parsed.get("type");
@@ -1946,7 +1951,7 @@ public SseEmitter streamChatMessageAutoRoom(
                                     contentPayload.put("timestamp", System.currentTimeMillis());
                                     
                                     CommonResponse contentResponse = CommonResponse.success(contentPayload);
-                                    String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(contentResponse);
+                                    String json = OBJECT_MAPPER.writeValueAsString(contentResponse);
                                     emitter.send(SseEmitter.event().name("content").data(json));
                                     try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
                                 }
@@ -2043,7 +2048,7 @@ public SseEmitter streamChatMessageAutoRoom(
                 if (!cancelled.get()) {
                     // complete 이벤트를 CommonResponse 형식으로 변경 (SSE 이벤트 자체를 CommonResponse로)
                     CommonResponse completeResponse = CommonResponse.success(completePayload);
-                    String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(completeResponse);
+                    String json = OBJECT_MAPPER.writeValueAsString(completeResponse);
                     emitter.send(SseEmitter.event().name("complete").data(json));
                 }
             }
@@ -2069,7 +2074,7 @@ private void sendEvent(SseEmitter emitter, String type, Object data, int step, S
     if (agentId != null) {
         message.put("agent_id", agentId);
     }
-    String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(message);
+    String json = OBJECT_MAPPER.writeValueAsString(message);
     emitter.send(SseEmitter.event().name(type).data(json));
 }
 
