@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/fitting")
@@ -160,6 +160,96 @@ public class SimpleFittingController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CommonResponse.fail(errorResponse.getMessage()));
         }
+    }
+    
+    /**
+     * 이미지 프록시 API - CORS 문제 해결을 위한 이미지 프록시
+     */
+    @GetMapping("/proxy-image")
+    @Operation(
+        summary = "이미지 프록시",
+        description = "CORS 문제 해결을 위한 이미지 프록시 API. 외부 이미지 URL을 받아서 CORS 헤더와 함께 반환합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "이미지 프록시 성공",
+            content = @Content(mediaType = "image/jpeg")
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "잘못된 요청 (imageUrl 파라미터 누락)",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "서버 오류 (이미지 다운로드 실패)",
+            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+        )
+    })
+    public ResponseEntity<?> proxyImage(
+            @Parameter(description = "프록시할 이미지 URL", required = true, example = "https://example.com/image.jpg")
+            @RequestParam("imageUrl") String imageUrl,
+            HttpServletResponse response) {
+        
+        try {
+            // URL 유효성 검사
+            if (imageUrl == null || imageUrl.trim().isEmpty()) {
+                log.warn("이미지 URL이 비어있습니다.");
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("이미지 URL이 필요합니다."));
+            }
+            
+            log.info("이미지 프록시 시작: imageUrl={}", imageUrl);
+            
+            // 외부 이미지 다운로드
+            ResponseEntity<byte[]> externalResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+            
+            if (externalResponse.getBody() == null || externalResponse.getBody().length == 0) {
+                log.warn("다운로드된 이미지가 비어있습니다: imageUrl={}", imageUrl);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(CommonResponse.fail("이미지를 다운로드할 수 없습니다."));
+            }
+            
+            // CORS 헤더 설정
+            response.setHeader("Access-Control-Allow-Origin", "*");
+            response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+            response.setHeader("Access-Control-Allow-Headers", "*");
+            response.setHeader("Access-Control-Max-Age", "3600");
+            
+            // Content-Type 설정 (이미지 타입 감지)
+            String contentType = externalResponse.getHeaders().getContentType() != null 
+                ? externalResponse.getHeaders().getContentType().toString()
+                : "image/jpeg";
+            response.setContentType(contentType);
+            
+            // Cache-Control 설정 (선택사항)
+            response.setHeader("Cache-Control", "public, max-age=3600");
+            
+            log.info("이미지 프록시 완료: imageUrl={}, size={} bytes, contentType={}", 
+                imageUrl, externalResponse.getBody().length, contentType);
+            
+            return ResponseEntity.ok(externalResponse.getBody());
+            
+        } catch (Exception e) {
+            log.error("이미지 프록시 실패: imageUrl={}, error={}", imageUrl, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CommonResponse.fail("이미지 다운로드에 실패했습니다: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * OPTIONS 요청 처리 (CORS preflight)
+     */
+    @RequestMapping(value = "/proxy-image", method = RequestMethod.OPTIONS)
+    public ResponseEntity<?> proxyImageOptions(HttpServletResponse response) {
+        // CORS 헤더 설정
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "*");
+        response.setHeader("Access-Control-Max-Age", "3600");
+        
+        return ResponseEntity.ok().build();
     }
     
     /**
