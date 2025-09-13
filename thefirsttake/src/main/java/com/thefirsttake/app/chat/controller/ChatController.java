@@ -112,6 +112,9 @@ public class ChatController {
     
     // 활성 연결 수를 추적하기 위한 AtomicInteger (Gauge에서 사용)
     private final java.util.concurrent.atomic.AtomicInteger activeConnectionsCount;
+    
+    // 연결별 종료 상태 추적 (중복 감소 방지)
+    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> connectionEndedMap = new java.util.concurrent.ConcurrentHashMap<>();
     private final DistributionSummary sseConnectionMemoryUsageSummary;
     private final Counter sseConnectionPoolHitsCounter;
     private final Counter sseConnectionPoolMissesCounter;
@@ -266,8 +269,15 @@ public class ChatController {
             long endMemory = runtime.totalMemory() - runtime.freeMemory();
             Long startMemory = connectionMemoryMap.remove(connectionId);
             
-            // 활성 커넥션 수 감소 (로그 출력 전에 먼저 실행)
-            int activeConnections = activeConnectionsCount.decrementAndGet();
+            // 활성 커넥션 수 감소 (중복 감소 방지)
+            int activeConnections;
+            if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+                // 첫 번째 종료만 처리
+                activeConnections = activeConnectionsCount.decrementAndGet();
+            } else {
+                // 이미 종료된 연결이므로 현재 값만 가져옴
+                activeConnections = activeConnectionsCount.get();
+            }
             
             if (startMemory != null) {
                 // 연결 시작과 종료 시점의 메모리 차이로 실제 사용량 계산
@@ -1295,7 +1305,7 @@ public class ChatController {
         finalRoomId = roomId;
     }
 
-    final SseEmitter emitter = new SseEmitter(60000L);
+    final SseEmitter emitter = new SseEmitter(120000L);
     final AtomicBoolean cancelled = new AtomicBoolean(false);
     
     // SSE 커넥션 추적 시작
@@ -1313,17 +1323,19 @@ public class ChatController {
     
     // 타임아웃 기반 강제 종료를 위한 타이머
     final AtomicBoolean forceCompleted = new AtomicBoolean(false);
-    CompletableFuture.delayedExecutor(60, TimeUnit.SECONDS).execute(() -> {
+    CompletableFuture.delayedExecutor(120, TimeUnit.SECONDS).execute(() -> {
         if (!forceCompleted.get()) {
             log.warn("⏰ SSE 연결 강제 타임아웃: connectionId={}", connectionId);
             cancelled.set(true);
             
-            // 강제 종료 시 메트릭 업데이트
-            connectionTimer.stop(sseConnectionDurationTimer);
-            totalResponseTimer.stop(sseApiTotalResponseTimer);
-            sseApiFailureCounter.increment(); // 타임아웃은 실패로 간주
-            sseDisconnectionCounter.increment();
-            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "force_timeout", connectionId);
+            // 강제 종료 시 메트릭 업데이트 (중복 방지)
+            if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+                connectionTimer.stop(sseConnectionDurationTimer);
+                totalResponseTimer.stop(sseApiTotalResponseTimer);
+                sseApiFailureCounter.increment(); // 타임아웃은 실패로 간주
+                sseDisconnectionCounter.increment();
+                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "force_timeout", connectionId);
+            }
             
             try {
                 emitter.complete();
@@ -1336,27 +1348,36 @@ public class ChatController {
     // SSE 수명주기 훅: 연결 종료/타임아웃/에러 시 취소 플래그 설정
     emitter.onCompletion(() -> {
         cancelled.set(true);
-        connectionTimer.stop(sseConnectionDurationTimer);
-        totalResponseTimer.stop(sseApiTotalResponseTimer);
-        sseApiSuccessCounter.increment();
-        sseDisconnectionCounter.increment();
-        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
+        // 중복 처리 방지
+        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+            connectionTimer.stop(sseConnectionDurationTimer);
+            totalResponseTimer.stop(sseApiTotalResponseTimer);
+            sseApiSuccessCounter.increment();
+            sseDisconnectionCounter.increment();
+            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
+        }
     });
     emitter.onTimeout(() -> {
         cancelled.set(true);
-        connectionTimer.stop(sseConnectionDurationTimer);
-        totalResponseTimer.stop(sseApiTotalResponseTimer);
-        sseApiFailureCounter.increment();
-        sseDisconnectionCounter.increment();
-        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
+        // 중복 처리 방지
+        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+            connectionTimer.stop(sseConnectionDurationTimer);
+            totalResponseTimer.stop(sseApiTotalResponseTimer);
+            sseApiFailureCounter.increment();
+            sseDisconnectionCounter.increment();
+            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
+        }
     });
     emitter.onError(e -> {
         cancelled.set(true);
-        connectionTimer.stop(sseConnectionDurationTimer);
-        totalResponseTimer.stop(sseApiTotalResponseTimer);
-        sseApiFailureCounter.increment();
-        sseDisconnectionCounter.increment();
-        endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
+        // 중복 처리 방지
+        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+            connectionTimer.stop(sseConnectionDurationTimer);
+            totalResponseTimer.stop(sseApiTotalResponseTimer);
+            sseApiFailureCounter.increment();
+            sseDisconnectionCounter.increment();
+            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
+        }
     });
 
     // 통합된 스트림 처리 로직
@@ -1647,6 +1668,11 @@ public class ChatController {
         } finally {
             try { 
                 forceCompleted.set(true);
+                // 중복 완료 방지
+                if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
+                    // 이미 다른 곳에서 처리되지 않은 경우에만 처리
+                    log.warn("SSE 연결이 finally 블록에서 종료됨: connectionId={}", connectionId);
+                }
                 emitter.complete(); 
             } catch (Exception ignore) {}
         }
