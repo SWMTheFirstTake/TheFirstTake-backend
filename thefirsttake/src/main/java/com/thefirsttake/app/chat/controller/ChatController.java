@@ -1098,538 +1098,39 @@ public class ChatController {
         }
     }
 
+
     @Operation(
-            summary = "채팅 메시지 스트리밍 (SSE) - 특정 방에서 실시간 AI 응답 수신",
+            summary = "채팅 메시지 스트리밍 (SSE) - 통합 스트림 API",
             description = """
-                    특정 채팅방에서 사용자 입력을 기반으로 다중 전문가(스타일 분석가, 컬러 전문가, 핏팅 코디네이터)의 
-                    실시간 AI 응답을 SSE(Server-Sent Events)로 전달합니다. 
+                    사용자 입력을 기반으로 채팅방에서 실시간 AI 응답을 스트리밍으로 전달합니다.
+                    room_id가 있으면 기존 방을 사용하고, 없으면 새 방을 자동 생성합니다.
                     
                     **주요 특징:**
+                    - 유연한 방 관리: room_id 파라미터로 기존 방 사용 또는 새 방 생성
                     - 실시간 스트리밍: AI 응답이 생성되는 대로 즉시 전송
-                    - 다중 전문가: 3명의 전문가가 동시에 응답 생성
+                    - 다중 전문가: 3명의 전문가가 순차적으로 응답 생성
                     - 상품 추천: 완료 시 관련 상품 이미지와 정보 제공
                     - 자동 저장: 사용자 메시지와 AI 응답을 PostgreSQL에 자동 저장
-                    - CommonResponse 형식: 모든 이벤트가 표준화된 응답 형식으로 전송
+                    - 명시적 종료: 모든 전문가 완료 후 SSE 연결 자동 종료
                     
                     **이벤트 타입:**
                     - `connect`: SSE 연결 성공
                     - `content`: AI 응답 실시간 스트리밍 (각 전문가별)
-                    - `complete`: 최종 완료 및 상품 추천 (각 전문가별)
+                    - `complete`: 개별 전문가 완료 (각 전문가별)
+                    - `final_complete`: 모든 전문가 완료 및 연결 종료
                     - `error`: 에러 발생 시
                     
-                    **프론트엔드 구현 예시:**
+                    **사용 예시:**
                     ```javascript
-                    const eventSource = new EventSource('/api/chat/rooms/259/messages/stream?user_input=소개팅+옷+추천해줘');
+                    // 기존 방 사용
+                    const eventSource1 = new EventSource('/api/chat/rooms/messages/stream?room_id=123&user_input=안녕하세요');
                     
-                    eventSource.addEventListener('connect', (event) => {
-                        console.log('연결 성공:', event.data);
-                    });
+                    // 새 방 생성
+                    const eventSource2 = new EventSource('/api/chat/rooms/messages/stream?user_input=안녕하세요');
                     
-                    eventSource.addEventListener('content', (event) => {
-                        const data = JSON.parse(event.data);
-                        if (data.status === 'success') {
-                            console.log('AI 응답:', data.data.message);
-                            console.log('전문가:', data.data.agent_name);
-                        }
-                    });
-                    
-                    eventSource.addEventListener('complete', (event) => {
-                        const data = JSON.parse(event.data);
-                        if (data.status === 'success') {
-                            console.log('완료 메시지:', data.data.message);
-                            console.log('추천 상품:', data.data.products);
-                        }
-                    });
-                    ```
-                    """,
-            parameters = {
-                    @Parameter(
-                            name = "roomId", 
-                            description = "채팅방 ID (기존 방 사용)", 
-                            required = true, 
-                            schema = @Schema(type = "integer", format = "int64"),
-                            example = "259"
-                    ),
-                    @Parameter(
-                            name = "user_input", 
-                            description = "사용자 입력 텍스트 (패션 상담 요청)", 
-                            required = true, 
-                            schema = @Schema(type = "string"),
-                            example = "소개팅 가는데 입을 옷 추천해줘"
-                    ),
-                    @Parameter(
-                            name = "user_profile", 
-                            description = "사용자 프로필 정보 (선택사항)", 
-                            required = false, 
-                            schema = @Schema(type = "string"),
-                            example = "20대 남성, 키 175cm, 체형 보통"
-                    )
-            },
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200", 
-                            description = "SSE 연결 성공 - 실시간 스트림 시작", 
-                            content = @Content(
-                                    mediaType = "text/event-stream",
-                                    examples = {
-                                            @ExampleObject(
-                                                    name = "연결 성공",
-                                                    summary = "SSE 연결이 성공적으로 설정됨",
-                                                    value = """
-                                                    event: connect
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1757045016039}}
-                                                    
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "AI 응답 스트리밍",
-                                                    summary = "실시간 AI 응답 메시지",
-                                                    value = """
-                                                    event: content
-                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","type":"content","timestamp":1757045028619}}
-                                                    
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "완료 및 상품 추천",
-                                                    summary = "최종 완료 메시지와 추천 상품",
-                                                    value = """
-                                                    event: complete
-                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
-                                                    
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "에러 발생",
-                                                    summary = "처리 중 오류 발생",
-                                                    value = """
-                                                    event: error
-                                                    data: {"status":"fail","message":"스트림 처리 오류: [에러 메시지]","data":null}
-                                                    
-                                                    """
-                                            )
-                                    }
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "400", 
-                            description = "요청 파라미터 오류 (roomId 누락, user_input 누락 등)",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "파라미터 오류",
-                                            summary = "필수 파라미터가 누락된 경우",
-                                            value = """
-                                            {
-                                              "status": "fail",
-                                              "message": "roomId와 user_input은 필수 파라미터입니다.",
-                                              "data": null
-                                            }
-                                            """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "404", 
-                            description = "채팅방을 찾을 수 없음",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "채팅방 없음",
-                                            summary = "존재하지 않는 roomId로 요청한 경우",
-                                            value = """
-                                            {
-                                              "status": "fail",
-                                              "message": "ChatRoom not found with ID: 999",
-                                              "data": null
-                                            }
-                                            """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500", 
-                            description = "서버 내부 오류 (외부 API 호출 실패, DB 저장 실패 등)",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "서버 오류",
-                                            summary = "예상치 못한 서버 오류 발생",
-                                            value = """
-                                            {
-                                              "status": "fail",
-                                              "message": "스트림 처리 중 오류가 발생했습니다: [오류 메시지]",
-                                              "data": null
-                                            }
-                                            """
-                                    )
-                            )
-                    )
-            }
-    )
-    @GetMapping("/rooms/{roomId}/messages/stream")
-        public SseEmitter streamChatMessage(
-                @PathVariable("roomId") Long roomId,
-                @RequestParam("user_input") String userInput,
-                @RequestParam(value = "user_profile", required = false) String userProfile,
-                HttpServletRequest httpRequest
-        ) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session == null) {
-                session = httpRequest.getSession(true);
-        }
-        final HttpSession finalSession = session;
-
-        final SseEmitter emitter = new SseEmitter(300000L);
-        final AtomicBoolean cancelled = new AtomicBoolean(false);
-
-        // SSE 커넥션 추적 시작
-        String connectionId = "sse_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
-        Timer.Sample connectionCreationTimer = startSSEConnectionTracking(connectionId);
-        Timer.Sample connectionLifetimeTimer = Timer.start();
-        
-        // SSE API 전체 응답 시간 측정 시작
-        sseApiTotalCounter.increment();
-        Timer.Sample totalResponseTimer = Timer.start();
-        
-        // SSE 연결 메트릭 (기존)
-        sseConnectionCounter.increment();
-        Timer.Sample connectionTimer = Timer.start();
-
-        // SSE 수명주기 훅: 연결 종료/타임아웃/에러 시 취소 플래그 설정
-        emitter.onCompletion(() -> {
-                cancelled.set(true);
-                connectionTimer.stop(sseConnectionDurationTimer);
-                totalResponseTimer.stop(sseApiTotalResponseTimer);
-                sseApiSuccessCounter.increment();
-                sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
-        });
-        emitter.onTimeout(() -> {
-                cancelled.set(true);
-                connectionTimer.stop(sseConnectionDurationTimer);
-                totalResponseTimer.stop(sseApiTotalResponseTimer);
-                sseApiFailureCounter.increment();
-                sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
-        });
-        emitter.onError(e -> {
-                cancelled.set(true);
-                connectionTimer.stop(sseConnectionDurationTimer);
-                totalResponseTimer.stop(sseApiTotalResponseTimer);
-                sseApiFailureCounter.increment();
-                sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
-        });
-
-        try {
-                // connect 이벤트를 CommonResponse 형식으로 변경
-                Map<String, Object> connectData = new HashMap<>();
-                connectData.put("message", "SSE 연결 성공");
-                connectData.put("type", "connect");
-                connectData.put("timestamp", System.currentTimeMillis());
-                
-                CommonResponse connectResponse = CommonResponse.success(connectData);
-                String json = OBJECT_MAPPER.writeValueAsString(connectResponse);
-                emitter.send(SseEmitter.event().name("connect").data(json));
-        } catch (IOException e) {
-                log.warn("초기 SSE 메시지 전송 실패", e);
-        }
-
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-                try {
-                // 메모리 사용량 측정 시작
-                recordMemoryUsage();
-                
-                // 사용자 메시지를 먼저 DB에 저장 (세션 ID 기반으로 사용자 생성/조회)
-                try {
-                        log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", roomId, userInput, finalSession.getId());
-                        
-                        // 세션 ID 기반으로 사용자 생성/조회 (send API와 동일한 로직)
-                        UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
-                        log.info("세션 기반 사용자 엔티티 조회/생성 완료: userEntity={}, userId={}", userEntity, userEntity != null ? userEntity.getId() : "null");
-                        
-                        if (userEntity == null) {
-                        log.error("사용자 엔티티가 null입니다. sessionId={}", finalSession.getId());
-                        return;
-                        }
-                        
-                        ChatMessageRequest userMessageRequest = new ChatMessageRequest();
-                        userMessageRequest.setContent(userInput);
-                        userMessageRequest.setImageUrl(null); // 스트림 API에서는 이미지 없음
-                        
-                        chatMessageService.saveUserMessage(userEntity, userMessageRequest, roomId);
-                        log.info("스트림 API 사용자 메시지를 데이터베이스에 저장했습니다. roomId={}, message='{}'", roomId, userInput);
-                } catch (Exception e) {
-                        log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", roomId, finalSession.getId(), e.getMessage(), e);
-                }
-                
-                // 외부 스트리밍 API 호출 준비
-                final String externalApiUrl = llmExpertStreamUrl;
-
-                // 항상 전체 전문가 실행
-                java.util.List<String> expertList = new java.util.ArrayList<>();
-                expertList.add("style_analyst");
-                expertList.add("color_expert");
-                expertList.add("fitting_coordinator");
-
-                for (String curExpert : expertList) {
-                        if (cancelled.get()) break;
-                        
-                        // 각 전문가 처리 전 메모리 측정
-                        recordMemoryUsage();
-                        
-                        Map<String, Object> expertRequest = new HashMap<>();
-                        expertRequest.put("user_input", userInput);
-                        expertRequest.put("expert_type", curExpert);
-                        expertRequest.put("room_id", roomId);
-
-                        // user_profile 포함 (있는 경우)
-                        if (userProfile != null && !userProfile.trim().isEmpty()) {
-                        Map<String, Object> userProfileMap = new HashMap<>();
-                        userProfileMap.put("profile_text", userProfile);
-                        expertRequest.put("user_profile", userProfileMap);
-                        }
-
-                        expertRequest.put("context_info", null);
-                        expertRequest.put("json_data", null);
-
-                        if (cancelled.get()) break;
-                        HttpHeaders headers = new HttpHeaders();
-                        headers.setContentType(MediaType.APPLICATION_JSON);
-                        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(expertRequest, headers);
-
-                        if (cancelled.get()) break;
-                        
-                        // LLM API 호출 메트릭 (전문가별)
-                        llmApiCallCounter.increment();
-                        Counter.builder("llm_api_calls_by_expert_total")
-                                .description("Total number of LLM API calls by expert")
-                                .tag("expert_type", curExpert)
-                                .register(meterRegistry)
-                                .increment();
-                        Timer.Sample llmTimer = Timer.start();
-                        
-                        ResponseEntity<String> response = restTemplate.exchange(
-                                externalApiUrl,
-                                HttpMethod.POST,
-                                entity,
-                                String.class
-                        );
-                        
-                        llmTimer.stop(llmApiResponseTimer);
-                        
-                        // 상태 코드별 메트릭 추가
-                        Counter.builder("llm_api_status_code_total")
-                                .description("LLM API calls by HTTP status code")
-                                .tag("expert_type", curExpert)
-                                .tag("status_code", String.valueOf(response.getStatusCode().value()))
-                                .register(meterRegistry)
-                                .increment();
-                        
-                        // 응답 크기 메트릭 추가
-                        if (response.getBody() != null) {
-                            DistributionSummary.builder("llm_api_response_size")
-                                    .description("LLM API response size in bytes")
-                                    .baseUnit("bytes")
-                                    .tag("expert_type", curExpert)
-                                    .register(meterRegistry)
-                                    .record(response.getBody().length());
-                        }
-
-                        StringBuilder finalText = new StringBuilder();
-
-                        if (response.getStatusCode() == HttpStatus.OK) {
-                        llmApiSuccessCounter.increment();
-                        String body = response.getBody();
-                        if (body != null && body.contains("data:")) {
-                                String[] lines = body.split("\n");
-                                for (String line : lines) {
-                                if (cancelled.get()) break;
-                                if (!line.startsWith("data:")) continue;
-                                String jsonData = line.substring(5).trim();
-                                if (jsonData.isEmpty()) continue;
-                                try {
-                                        ObjectMapper mapper = OBJECT_MAPPER;
-                                        @SuppressWarnings("unchecked")
-                                        Map<String, Object> parsed = mapper.readValue(jsonData, Map.class);
-                                        Object type = parsed.get("type");
-                                        if ("content".equals(type) && parsed.containsKey("chunk")) {
-                                        String chunk = String.valueOf(parsed.get("chunk"));
-                                        finalText.append(chunk);
-                                        // 청크를 즉시 전송 (CommonResponse 형식으로)
-                                        if (cancelled.get()) break;
-                                        Map<String, Object> contentPayload = new HashMap<>();
-                                        contentPayload.put("message", chunk);
-                                        contentPayload.put("agent_id", curExpert);
-                                        contentPayload.put("agent_name", getAgentName(curExpert));
-                                        contentPayload.put("type", "content");
-                                        contentPayload.put("timestamp", System.currentTimeMillis());
-                                        
-                                        CommonResponse contentResponse = CommonResponse.success(contentPayload);
-                                        String json = OBJECT_MAPPER.writeValueAsString(contentResponse);
-                                        emitter.send(SseEmitter.event().name("content").data(json));
-                                        try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                                        }
-                                } catch (Exception ignore) {
-                                }
-                                }
-                        }
-                        } else {
-                        llmApiFailureCounter.increment();
-                        if (!cancelled.get()) {
-                                sendEvent(emitter, "error", "외부 API 호출 실패: " + response.getStatusCode(), 3, curExpert);
-                        }
-                        }
-
-                        // 완료 처리: 전문가별 상품 검색 + complete 전송
-                        if (cancelled.get()) break;
-                        Map<String, Object> completePayload = new HashMap<>();
-                        String finalMessage = finalText.toString();
-                        completePayload.put("message", finalMessage);
-                        completePayload.put("agent_id", curExpert);
-                        completePayload.put("agent_name", getAgentName(curExpert));
-
-                        // 변수를 미리 선언 (스코프 문제 해결)
-                        java.util.List<String> productImageUrls = new java.util.ArrayList<>();
-                        java.util.List<String> productIds = new java.util.ArrayList<>();
-                        java.util.List<com.thefirsttake.app.chat.dto.response.ProductInfo> products = new java.util.ArrayList<>();
-
-                        try {
-                        if (!cancelled.get()) {
-                                // 상품 검색 API 메트릭
-                                productSearchApiCallCounter.increment();
-                                Timer.Sample productTimer = Timer.start();
-                                
-                                Map<String, Object> searchResult = productSearchService.searchProducts(finalMessage);
-                                productTimer.stop(productSearchApiResponseTimer);
-                                
-                                if (searchResult != null) {
-                                productSearchApiSuccessCounter.increment();
-                                try {
-                                        productCacheService.cacheProductsFromSearchResult(searchResult);
-                                } catch (Exception cacheErr) {
-                                        log.warn("상품 캐싱 오류: {}", cacheErr.getMessage());
-                                }
-                                productImageUrls = productSearchService.extractProductImageUrls(searchResult);
-                                productIds = productCacheService.extractProductIds(searchResult);
-                                
-                                int minSize = Math.min(productImageUrls.size(), productIds.size());
-                                for (int i = 0; i < minSize; i++) {
-                                        com.thefirsttake.app.chat.dto.response.ProductInfo productInfo =
-                                                com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
-                                                        .productUrl(productImageUrls.get(i))
-                                                        .productId(productIds.get(i))
-                                                        .build();
-                                        products.add(productInfo);
-                                }
-                                completePayload.put("products", products);
-                                } else {
-                                productSearchApiFailureCounter.increment();
-                                }
-                                
-                                // 상품 정보가 있는 경우 DB에 저장
-                                if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
-                                try {
-                                        log.info("AI 응답 저장 시작: agent={}, roomId={}", curExpert, roomId);
-                                        UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
-                                        ChatRoom chatRoom = chatRoomManagementService.getRoomById(roomId);
-                                        log.info("AI 응답 저장용 엔티티 조회 완료: userEntity={}, chatRoom={}", 
-                                                userEntity != null ? userEntity.getId() : "null", 
-                                                chatRoom != null ? chatRoom.getId() : "null");
-                                        
-                                        if (userEntity == null || chatRoom == null) {
-                                        log.error("필수 엔티티가 null입니다. userEntity={}, chatRoom={}", userEntity, chatRoom);
-                                        return;
-                                        }
-                                        
-                                        // ChatAgentResponse 객체 생성
-                                        ChatAgentResponse agentResponse = new ChatAgentResponse();
-                                        agentResponse.setAgentId(curExpert);
-                                        agentResponse.setMessage(finalMessage);
-                                        agentResponse.setProducts(products);
-                                        
-                                        // DB에 저장
-                                        chatMessageService.saveAIResponse(userEntity, chatRoom, agentResponse);
-                                        log.info("스트림 완료 시 AI 응답을 데이터베이스에 저장했습니다. agent={}, roomId={}", curExpert, roomId);
-                                } catch (Exception dbErr) {
-                                        log.error("스트림 완료 시 DB 저장 실패: agent={}, roomId={}, error={}", curExpert, roomId, dbErr.getMessage(), dbErr);
-                                }
-                                }
-                        }
-                        } catch (Exception e) {
-                        log.warn("상품 검색 처리 중 오류: {}", e.getMessage());
-                        }
-
-                        if (!cancelled.get()) {
-                        // complete 이벤트를 CommonResponse 형식으로 변경 (SSE 이벤트 자체를 CommonResponse로)
-                        CommonResponse completeResponse = CommonResponse.success(completePayload);
-                        String json = OBJECT_MAPPER.writeValueAsString(completeResponse);
-                        emitter.send(SseEmitter.event().name("complete").data(json));
-                        }
-                }
-                } catch (Exception e) {
-                try {
-                        if (!cancelled.get()) {
-                        sendEvent(emitter, "error", "스트림 처리 오류: " + e.getMessage(), -1, null);
-                        }
-                } catch (IOException ignored) {}
-                } finally {
-                try { emitter.complete(); } catch (Exception ignore) {}
-                }
-        });
-
-        return emitter;
-        }
-
-    @Operation(
-            summary = "채팅 메시지 스트리밍 (SSE) - 자동 방 생성 및 실시간 AI 응답 수신",
-            description = """
-                    사용자 입력을 기반으로 자동으로 채팅방을 생성하고, 다중 전문가의 실시간 AI 응답을 
-                    SSE(Server-Sent Events)로 전달합니다. room_id가 없으면 서버가 자동으로 방을 생성합니다.
-                    
-                    **주요 특징:**
-                    - 자동 방 생성: room_id가 없으면 세션 기반으로 새 채팅방 자동 생성
-                    - 실시간 스트리밍: AI 응답이 생성되는 대로 즉시 전송
-                    - 다중 전문가: 3명의 전문가가 동시에 응답 생성
-                    - 상품 추천: 완료 시 관련 상품 이미지와 정보 제공
-                    - 자동 저장: 사용자 메시지와 AI 응답을 PostgreSQL에 자동 저장
-                    - CommonResponse 형식: 모든 이벤트가 표준화된 응답 형식으로 전송
-                    
-                    **이벤트 타입:**
-                    - `room`: 생성된 방 정보 전송 (자동 방 생성 시에만)
-                    - `connect`: SSE 연결 성공
-                    - `content`: AI 응답 실시간 스트리밍 (각 전문가별)
-                    - `complete`: 최종 완료 및 상품 추천 (각 전문가별)
-                    - `error`: 에러 발생 시
-                    
-                    **프론트엔드 구현 예시:**
-                    ```javascript
-                    const eventSource = new EventSource('/api/chat/rooms/messages/stream?user_input=소개팅+옷+추천해줘');
-                    
-                    eventSource.addEventListener('room', (event) => {
-                        const data = JSON.parse(event.data);
-                        console.log('생성된 방 ID:', data.data.room_id);
-                    });
-                    
-                    eventSource.addEventListener('connect', (event) => {
-                        console.log('연결 성공:', event.data);
-                    });
-                    
-                    eventSource.addEventListener('content', (event) => {
-                        const data = JSON.parse(event.data);
-                        if (data.status === 'success') {
-                            console.log('AI 응답:', data.data.message);
-                            console.log('전문가:', data.data.agent_name);
-                        }
-                    });
-                    
-                    eventSource.addEventListener('complete', (event) => {
-                        const data = JSON.parse(event.data);
-                        if (data.status === 'success') {
-                            console.log('완료 메시지:', data.data.message);
-                            console.log('추천 상품:', data.data.products);
-                        }
+                    eventSource.addEventListener('final_complete', (event) => {
+                        console.log('모든 전문가 완료, 연결 종료');
+                        eventSource.close();
                     });
                     ```
                     """,
@@ -1750,22 +1251,51 @@ public class ChatController {
             }
     )
     @GetMapping("/rooms/messages/stream")
-public SseEmitter streamChatMessageAutoRoom(
-        @RequestParam(value = "room_id", required = false) Long roomId,
-        @RequestParam("user_input") String userInput,
-        HttpServletRequest httpRequest
-) {
+    public SseEmitter streamChatMessage(
+            @RequestParam(value = "room_id", required = false) Long roomId,
+            @RequestParam("user_input") String userInput,
+            @RequestParam(value = "user_profile", required = false) String userProfile,
+            HttpServletRequest httpRequest
+    ) {
+    // 1. 세션 처리
     HttpSession session = httpRequest.getSession(false);
     if (session == null) {
         session = httpRequest.getSession(true);
     }
     final HttpSession finalSession = session;
 
-    final SseEmitter emitter = new SseEmitter(300000L);
+    // 2. 방 ID 결정 (roomId가 없으면 새 방 생성)
+    final Long finalRoomId;
+    if (roomId == null) {
+        try {
+            finalRoomId = chatRoomManagementService.createChatRoom(finalSession.getId());
+            log.info("새 채팅방 생성됨: roomId={}, sessionId={}", finalRoomId, finalSession.getId());
+        } catch (Exception e) {
+            log.error("채팅방 생성 실패: sessionId={}, error={}", finalSession.getId(), e.getMessage(), e);
+            // 에러 응답 반환
+            SseEmitter errorEmitter = new SseEmitter(1000L);
+            try {
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("message", "채팅방 생성에 실패했습니다.");
+                errorData.put("error", e.getMessage());
+                CommonResponse errorResponse = CommonResponse.fail("채팅방 생성에 실패했습니다: " + e.getMessage());
+                String errorJson = OBJECT_MAPPER.writeValueAsString(errorResponse);
+                errorEmitter.send(SseEmitter.event().name("error").data(errorJson));
+                errorEmitter.complete();
+            } catch (Exception ex) {
+                log.error("에러 응답 전송 실패", ex);
+            }
+            return errorEmitter;
+        }
+    } else {
+        finalRoomId = roomId;
+    }
+
+    final SseEmitter emitter = new SseEmitter(60000L);
     final AtomicBoolean cancelled = new AtomicBoolean(false);
     
     // SSE 커넥션 추적 시작
-    String connectionId = "sse_auto_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
+    String connectionId = "sse_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
     Timer.Sample connectionCreationTimer = startSSEConnectionTracking(connectionId);
     Timer.Sample connectionLifetimeTimer = Timer.start();
     
@@ -1803,40 +1333,7 @@ public SseEmitter streamChatMessageAutoRoom(
         endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
     });
 
-    Long finalRoomId = roomId;
-    try {
-        if (finalRoomId == null) {
-            // 세션 기반으로 방 생성 (기존 로직 재사용)
-            finalRoomId = chatRoomManagementService.createChatRoom(session.getId());
-        } else {
-            // 존재 확인 (없으면 예외)
-            chatRoomManagementService.getRoomById(finalRoomId);
-        }
-
-        // 연결/방 정보 이벤트 먼저 전송 (CommonResponse 형식으로 변경)
-        Map<String, Object> roomData = new HashMap<>();
-        roomData.put("room_id", finalRoomId);
-        roomData.put("type", "room");
-        roomData.put("timestamp", System.currentTimeMillis());
-        
-        CommonResponse roomResponse = CommonResponse.success(roomData);
-        String json = OBJECT_MAPPER.writeValueAsString(roomResponse);
-        emitter.send(SseEmitter.event().name("room").data(json));
-
-    } catch (Exception e) {
-        try {
-            emitter.send(SseEmitter.event().name("error").data("방 준비 중 오류: " + e.getMessage()));
-        } catch (IOException ignored) {}
-        connectionTimer.stop(sseConnectionDurationTimer);
-        totalResponseTimer.stop(sseApiTotalResponseTimer);
-        sseApiFailureCounter.increment();
-        sseDisconnectionCounter.increment();
-        emitter.complete();
-        return emitter;
-    }
-
-    // 기존 스트림 로직 재사용을 위해 내부 메서드 대신, 최소 변경으로 동일 흐름을 복제
-    final Long resolvedRoomId = finalRoomId;
+    // 통합된 스트림 처리 로직
 
     try {
         // connect 이벤트를 CommonResponse 형식으로 변경
@@ -1859,7 +1356,7 @@ public SseEmitter streamChatMessageAutoRoom(
             
             // 사용자 메시지를 먼저 DB에 저장 (세션 ID 기반으로 사용자 생성/조회)
             try {
-                log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", resolvedRoomId, userInput, finalSession.getId());
+                log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", finalRoomId, userInput, finalSession.getId());
                 
                 // 세션 ID 기반으로 사용자 생성/조회 (send API와 동일한 로직)
                 UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
@@ -1874,10 +1371,10 @@ public SseEmitter streamChatMessageAutoRoom(
                 userMessageRequest.setContent(userInput);
                 userMessageRequest.setImageUrl(null); // 스트림 API에서는 이미지 없음
                 
-                chatMessageService.saveUserMessage(userEntity, userMessageRequest, resolvedRoomId);
-                log.info("스트림 API 사용자 메시지를 데이터베이스에 저장했습니다. roomId={}, message='{}'", resolvedRoomId, userInput);
+                chatMessageService.saveUserMessage(userEntity, userMessageRequest, finalRoomId);
+                log.info("스트림 API 사용자 메시지를 데이터베이스에 저장했습니다. roomId={}, message='{}'", finalRoomId, userInput);
             } catch (Exception e) {
-                log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", resolvedRoomId, finalSession.getId(), e.getMessage(), e);
+                log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", finalRoomId, finalSession.getId(), e.getMessage(), e);
             }
             
             final String externalApiUrl = llmExpertStreamUrl;
@@ -1886,6 +1383,12 @@ public SseEmitter streamChatMessageAutoRoom(
             expertList.add("style_analyst");
             expertList.add("color_expert");
             expertList.add("fitting_coordinator");
+
+            // 전문가 완료 상태 추적을 위한 Map
+            java.util.Map<String, Boolean> expertCompleted = new java.util.concurrent.ConcurrentHashMap<>();
+            for (String expert : expertList) {
+                expertCompleted.put(expert, false);
+            }
 
             for (String curExpert : expertList) {
                 if (cancelled.get()) break;
@@ -1896,9 +1399,14 @@ public SseEmitter streamChatMessageAutoRoom(
                 Map<String, Object> expertRequest = new HashMap<>();
                 expertRequest.put("user_input", userInput);
                 expertRequest.put("expert_type", curExpert);
-                expertRequest.put("room_id", resolvedRoomId);
+                expertRequest.put("room_id", finalRoomId);
 
-                // user_profile 제거
+                // user_profile 포함 (있는 경우)
+                if (userProfile != null && !userProfile.trim().isEmpty()) {
+                    Map<String, Object> userProfileMap = new HashMap<>();
+                    userProfileMap.put("profile_text", userProfile);
+                    expertRequest.put("user_profile", userProfileMap);
+                }
 
                 expertRequest.put("context_info", null);
                 expertRequest.put("json_data", null);
@@ -2040,9 +1548,9 @@ public SseEmitter streamChatMessageAutoRoom(
                         // 상품 정보가 있는 경우 DB에 저장
                         if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
                             try {
-                                log.info("AI 응답 저장 시작: agent={}, roomId={}", curExpert, resolvedRoomId);
+                                log.info("AI 응답 저장 시작: agent={}, roomId={}", curExpert, finalRoomId);
                                 UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
-                                ChatRoom chatRoom = chatRoomManagementService.getRoomById(resolvedRoomId);
+                                ChatRoom chatRoom = chatRoomManagementService.getRoomById(finalRoomId);
                                 log.info("AI 응답 저장용 엔티티 조회 완료: userEntity={}, chatRoom={}", 
                                         userEntity != null ? userEntity.getId() : "null", 
                                         chatRoom != null ? chatRoom.getId() : "null");
@@ -2060,9 +1568,9 @@ public SseEmitter streamChatMessageAutoRoom(
                                 
                                 // DB에 저장
                                 chatMessageService.saveAIResponse(userEntity, chatRoom, agentResponse);
-                                log.info("스트림 완료 시 AI 응답을 데이터베이스에 저장했습니다. agent={}, roomId={}", curExpert, resolvedRoomId);
+                                log.info("스트림 완료 시 AI 응답을 데이터베이스에 저장했습니다. agent={}, roomId={}", curExpert, finalRoomId);
                             } catch (Exception dbErr) {
-                                log.error("스트림 완료 시 DB 저장 실패: agent={}, roomId={}, error={}", curExpert, resolvedRoomId, dbErr.getMessage(), dbErr);
+                                log.error("스트림 완료 시 DB 저장 실패: agent={}, roomId={}, error={}", curExpert, finalRoomId, dbErr.getMessage(), dbErr);
                             }
                         }
                     }
@@ -2071,10 +1579,36 @@ public SseEmitter streamChatMessageAutoRoom(
                 }
 
                 if (!cancelled.get()) {
+                    // 전문가 완료 상태 업데이트
+                    expertCompleted.put(curExpert, true);
+                    
                     // complete 이벤트를 CommonResponse 형식으로 변경 (SSE 이벤트 자체를 CommonResponse로)
                     CommonResponse completeResponse = CommonResponse.success(completePayload);
                     String json = OBJECT_MAPPER.writeValueAsString(completeResponse);
                     emitter.send(SseEmitter.event().name("complete").data(json));
+                    
+                    // 모든 전문가 완료 확인
+                    boolean allExpertsCompleted = expertCompleted.values().stream().allMatch(Boolean::booleanValue);
+                    if (allExpertsCompleted) {
+                        log.info("🎉 모든 전문가 응답 완료 - SSE 연결 종료: roomId={}", finalRoomId);
+                        try {
+                            // 최종 완료 메시지 전송
+                            Map<String, Object> finalCompleteMessage2 = new HashMap<>();
+                            finalCompleteMessage2.put("message", "모든 전문가 응답이 완료되었습니다.");
+                            finalCompleteMessage2.put("total_experts", expertList.size());
+                            finalCompleteMessage2.put("timestamp", System.currentTimeMillis());
+                            
+                            CommonResponse finalResponse = CommonResponse.success(finalCompleteMessage2);
+                            String finalJson = OBJECT_MAPPER.writeValueAsString(finalResponse);
+                            emitter.send(SseEmitter.event().name("final_complete").data(finalJson));
+                            
+                            // 명시적 SSE 연결 종료
+                            emitter.complete();
+                            return; // 루프 종료
+                        } catch (Exception e) {
+                            log.error("SSE 최종 완료 처리 실패: roomId={}, error={}", finalRoomId, e.getMessage(), e);
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
