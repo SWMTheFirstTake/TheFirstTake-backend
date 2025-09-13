@@ -200,13 +200,42 @@ public class SimpleFittingController {
                     .body(CommonResponse.fail("이미지 URL이 필요합니다."));
             }
             
-            log.info("이미지 프록시 시작: imageUrl={}", imageUrl);
+            // URL 디코딩 (프론트엔드에서 인코딩된 URL 처리)
+            String decodedUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
+            log.info("이미지 프록시 시작: originalUrl={}, decodedUrl={}", imageUrl, decodedUrl);
             
-            // 외부 이미지 다운로드
-            ResponseEntity<byte[]> externalResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+            // URL 형식 검증
+            if (!decodedUrl.startsWith("http://") && !decodedUrl.startsWith("https://")) {
+                log.warn("잘못된 URL 형식: {}", decodedUrl);
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("잘못된 URL 형식입니다."));
+            }
+            
+            // 외부 이미지 다운로드 (타임아웃 설정)
+            log.info("외부 이미지 다운로드 시도: {}", decodedUrl);
+            ResponseEntity<byte[]> externalResponse;
+            
+            try {
+                externalResponse = restTemplate.getForEntity(decodedUrl, byte[].class);
+                log.info("외부 이미지 다운로드 성공: status={}, contentLength={}", 
+                    externalResponse.getStatusCode(), 
+                    externalResponse.getBody() != null ? externalResponse.getBody().length : 0);
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                log.error("HTTP 클라이언트 에러: status={}, message={}", e.getStatusCode(), e.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(CommonResponse.fail("이미지 URL에 접근할 수 없습니다: " + e.getStatusCode()));
+            } catch (org.springframework.web.client.HttpServerErrorException e) {
+                log.error("HTTP 서버 에러: status={}, message={}", e.getStatusCode(), e.getMessage());
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(CommonResponse.fail("외부 서버 오류: " + e.getStatusCode()));
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                log.error("네트워크 접근 에러: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                    .body(CommonResponse.fail("네트워크 연결 실패: " + e.getMessage()));
+            }
             
             if (externalResponse.getBody() == null || externalResponse.getBody().length == 0) {
-                log.warn("다운로드된 이미지가 비어있습니다: imageUrl={}", imageUrl);
+                log.warn("다운로드된 이미지가 비어있습니다: imageUrl={}", decodedUrl);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(CommonResponse.fail("이미지를 다운로드할 수 없습니다."));
             }
@@ -227,10 +256,14 @@ public class SimpleFittingController {
             response.setHeader("Cache-Control", "public, max-age=3600");
             
             log.info("이미지 프록시 완료: imageUrl={}, size={} bytes, contentType={}", 
-                imageUrl, externalResponse.getBody().length, contentType);
+                decodedUrl, externalResponse.getBody().length, contentType);
             
             return ResponseEntity.ok(externalResponse.getBody());
             
+        } catch (java.io.UnsupportedEncodingException e) {
+            log.error("URL 디코딩 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(CommonResponse.fail("URL 디코딩 실패: " + e.getMessage()));
         } catch (Exception e) {
             log.error("이미지 프록시 실패: imageUrl={}, error={}", imageUrl, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -250,6 +283,38 @@ public class SimpleFittingController {
         response.setHeader("Access-Control-Max-Age", "3600");
         
         return ResponseEntity.ok().build();
+    }
+    
+    /**
+     * 프록시 API 테스트용 엔드포인트
+     */
+    @GetMapping("/proxy-test")
+    @Operation(
+        summary = "프록시 API 테스트",
+        description = "프록시 API가 정상 작동하는지 테스트하는 엔드포인트"
+    )
+    public ResponseEntity<CommonResponse> proxyTest() {
+        try {
+            // 간단한 테스트 이미지 URL (예: 1x1 픽셀 이미지)
+            String testUrl = "https://via.placeholder.com/1x1.jpg";
+            log.info("프록시 테스트 시작: testUrl={}", testUrl);
+            
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(testUrl, byte[].class);
+            
+            if (response.getBody() != null && response.getBody().length > 0) {
+                log.info("프록시 테스트 성공: size={} bytes", response.getBody().length);
+                return ResponseEntity.ok(CommonResponse.success("프록시 API가 정상 작동합니다."));
+            } else {
+                log.warn("프록시 테스트 실패: 응답이 비어있음");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(CommonResponse.fail("프록시 테스트 실패: 응답이 비어있습니다."));
+            }
+            
+        } catch (Exception e) {
+            log.error("프록시 테스트 실패: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CommonResponse.fail("프록시 테스트 실패: " + e.getMessage()));
+        }
     }
     
     /**
