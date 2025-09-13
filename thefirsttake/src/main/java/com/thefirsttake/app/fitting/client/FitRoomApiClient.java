@@ -146,8 +146,23 @@ public class FitRoomApiClient {
      */
     private byte[] downloadImageFromUrl(String imageUrl) {
         try {
-            log.info("이미지 다운로드 시작: {}", imageUrl);
-            ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
+            log.info("=== 이미지 다운로드 시작 ===");
+            log.info("원본 URL: {}", imageUrl);
+            log.info("URL 길이: {} characters", imageUrl.length());
+            log.info("URL에 & 포함 여부: {}", imageUrl.contains("&"));
+            log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
+            
+            // URL 디코딩 시도
+            String decodedUrl = imageUrl;
+            try {
+                decodedUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
+                log.info("디코딩된 URL: {}", decodedUrl);
+                log.info("디코딩 후 URL에 & 포함 여부: {}", decodedUrl.contains("&"));
+            } catch (Exception e) {
+                log.warn("URL 디코딩 실패, 원본 URL 사용: {}", e.getMessage());
+            }
+            
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(decodedUrl, byte[].class);
             
             if (response.getBody() == null || response.getBody().length == 0) {
                 throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
