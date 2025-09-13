@@ -219,11 +219,20 @@ public class MetricsConfig {
                 .register(meterRegistry);
     }
     
+    // 전역 AtomicInteger for active connections
+    private static final java.util.concurrent.atomic.AtomicInteger globalActiveConnections = new java.util.concurrent.atomic.AtomicInteger(0);
+    
     @Bean
-    public Counter sseConnectionsActiveGauge(MeterRegistry meterRegistry) {
-        return Counter.builder("sse_connections_active")
+    public io.micrometer.core.instrument.Gauge sseConnectionsActiveGauge(MeterRegistry meterRegistry) {
+        return io.micrometer.core.instrument.Gauge.builder("sse_connections_active", globalActiveConnections, 
+                atomicInt -> atomicInt.get())
                 .description("Current number of active SSE connections")
                 .register(meterRegistry);
+    }
+    
+    // 전역 AtomicInteger에 접근할 수 있는 static 메서드
+    public static java.util.concurrent.atomic.AtomicInteger getGlobalActiveConnections() {
+        return globalActiveConnections;
     }
     
     @Bean

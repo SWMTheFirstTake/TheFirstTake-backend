@@ -107,8 +107,11 @@ public class ChatController {
     
     // SSE 커넥션 풀 최적화 메트릭
     private final Counter sseConnectionsTotalCounter;
-    private final Counter sseConnectionsActiveGauge;
+    private final io.micrometer.core.instrument.Gauge sseConnectionsActiveGauge;
     private final Timer sseConnectionLifetimeTimer;
+    
+    // 활성 연결 수를 추적하기 위한 AtomicInteger (Gauge에서 사용)
+    private final java.util.concurrent.atomic.AtomicInteger activeConnectionsCount;
     private final DistributionSummary sseConnectionMemoryUsageSummary;
     private final Counter sseConnectionPoolHitsCounter;
     private final Counter sseConnectionPoolMissesCounter;
@@ -146,7 +149,7 @@ public class ChatController {
                          Counter sseApiMemoryPeakCounter,
                          Timer sseApiGcDurationTimer,
                          Counter sseConnectionsTotalCounter,
-                         Counter sseConnectionsActiveGauge,
+                         io.micrometer.core.instrument.Gauge sseConnectionsActiveGauge,
                          Timer sseConnectionLifetimeTimer,
                          DistributionSummary sseConnectionMemoryUsageSummary,
                          Counter sseConnectionPoolHitsCounter,
@@ -185,6 +188,7 @@ public class ChatController {
         this.sseApiGcDurationTimer = sseApiGcDurationTimer;
         this.sseConnectionsTotalCounter = sseConnectionsTotalCounter;
         this.sseConnectionsActiveGauge = sseConnectionsActiveGauge;
+        this.activeConnectionsCount = com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections();
         this.sseConnectionLifetimeTimer = sseConnectionLifetimeTimer;
         this.sseConnectionMemoryUsageSummary = sseConnectionMemoryUsageSummary;
         this.sseConnectionPoolHitsCounter = sseConnectionPoolHitsCounter;
@@ -230,7 +234,7 @@ public class ChatController {
         // SSE 커넥션 생성 시작
         Timer.Sample connectionCreationTimer = Timer.start();
         sseConnectionsTotalCounter.increment();
-        sseConnectionsActiveGauge.increment();
+        activeConnectionsCount.incrementAndGet();
         sseConnectionPoolMissesCounter.increment(); // 현재는 풀 없으므로 항상 miss
         
         // 연결 시작 시점의 메모리 기록
@@ -240,7 +244,7 @@ public class ChatController {
         
         log.info("SSE connection created. Total: {}, Active: {}, Start Memory: {}MB", 
             sseConnectionsTotalCounter.count(), 
-            sseConnectionsActiveGauge.count(),
+            activeConnectionsCount.get(),
             startMemory / 1024 / 1024);
         
         return connectionCreationTimer;
@@ -262,19 +266,20 @@ public class ChatController {
             long endMemory = runtime.totalMemory() - runtime.freeMemory();
             Long startMemory = connectionMemoryMap.remove(connectionId);
             
+            // 활성 커넥션 수 감소 (로그 출력 전에 먼저 실행)
+            int activeConnections = activeConnectionsCount.decrementAndGet();
+            
             if (startMemory != null) {
                 // 연결 시작과 종료 시점의 메모리 차이로 실제 사용량 계산
                 long actualMemoryUsed = Math.max(0, endMemory - startMemory);
                 sseConnectionMemoryUsageSummary.record(actualMemoryUsed);
                 
-                log.info("SSE connection ended. Reason: {}, Connection Memory Used: {}KB", 
-                    reason, actualMemoryUsed / 1024);
+                log.info("SSE connection ended. Reason: {}, Connection Memory Used: {}KB, Active: {}", 
+                    reason, actualMemoryUsed / 1024, activeConnections);
             } else {
-                log.warn("SSE connection start memory not found for connection: {}", connectionId);
+                log.warn("SSE connection start memory not found for connection: {}, Active: {}", 
+                    connectionId, activeConnections);
             }
-            
-            // 활성 커넥션 수 감소
-            sseConnectionsActiveGauge.increment(-1);
             
             // 종료 이유별 카운터 증가
             switch (reason) {
@@ -289,9 +294,6 @@ public class ChatController {
                     // 정상 완료는 별도 카운터 없음
                     break;
             }
-            
-            log.info("SSE connection ended. Reason: {}, Active: {}", 
-                reason, sseConnectionsActiveGauge.count());
                 
         } catch (Exception e) {
             log.warn("Failed to record SSE connection end metrics: {}", e.getMessage());
