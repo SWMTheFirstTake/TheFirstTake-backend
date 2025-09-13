@@ -142,6 +142,111 @@ public class FitRoomApiClient {
     }
     
     /**
+     * URL에서 이미지 다운로드
+     */
+    private byte[] downloadImageFromUrl(String imageUrl) {
+        try {
+            log.info("이미지 다운로드 시작: {}", imageUrl);
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
+            
+            if (response.getBody() == null || response.getBody().length == 0) {
+                throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
+            }
+            
+            log.info("이미지 다운로드 완료: {} ({} bytes)", imageUrl, response.getBody().length);
+            return response.getBody();
+            
+        } catch (Exception e) {
+            log.error("이미지 다운로드 실패: {}", imageUrl, e);
+            throw new RuntimeException("이미지 다운로드 실패: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * FitRoom에 콤보 가상피팅 작업 생성 (URL 방식 - 모델, 상하의 모두 URL 지원)
+     * URL을 받으면 다운로드해서 파일로 변환하여 전송
+     */
+    public String createComboTaskWithUrls(MultipartFile modelImage, String modelImageUrl, 
+                                        String clothImageUrl, String lowerClothImageUrl, boolean hdMode) {
+        try {
+            // Multipart 데이터 구성
+            MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+            
+            // 모델 이미지 처리 (파일 또는 URL)
+            if (modelImage != null) {
+                // 파일로 처리
+                formData.add("model_image", new ByteArrayResource(modelImage.getBytes()) {
+                    @Override
+                    public String getFilename() {
+                        return modelImage.getOriginalFilename();
+                    }
+                });
+            } else if (modelImageUrl != null) {
+                // URL에서 다운로드해서 파일로 처리
+                byte[] imageBytes = downloadImageFromUrl(modelImageUrl);
+                formData.add("model_image", new ByteArrayResource(imageBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "model.jpg";
+                    }
+                });
+            }
+            
+            // 상의 이미지 처리 (URL에서 다운로드)
+            if (clothImageUrl != null) {
+                byte[] imageBytes = downloadImageFromUrl(clothImageUrl);
+                formData.add("cloth_image", new ByteArrayResource(imageBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "cloth.jpg";
+                    }
+                });
+            }
+            
+            // 하의 이미지 처리 (URL에서 다운로드)
+            if (lowerClothImageUrl != null) {
+                byte[] imageBytes = downloadImageFromUrl(lowerClothImageUrl);
+                formData.add("lower_cloth_image", new ByteArrayResource(imageBytes) {
+                    @Override
+                    public String getFilename() {
+                        return "lower_cloth.jpg";
+                    }
+                });
+            }
+            
+            formData.add("cloth_type", "combo");
+            
+            if (hdMode) {
+                formData.add("hd_mode", "true");
+            }
+            
+            // 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("X-API-KEY", apiKey);
+            
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(formData, headers);
+            
+            // API 호출
+            String url = baseUrl + "/api/tryon/v2/tasks";
+            ResponseEntity<FitRoomTaskResponse> response = restTemplate.postForEntity(url, requestEntity, FitRoomTaskResponse.class);
+            
+            if (response.getBody() == null || response.getBody().getTaskId() == null) {
+                throw new RuntimeException("FitRoom 콤보 작업 생성 실패 (URL 방식): 응답이 null입니다.");
+            }
+            
+            return response.getBody().getTaskId();
+            
+        } catch (IOException e) {
+            log.error("모델 이미지 파일 읽기 실패", e);
+            throw new RuntimeException("모델 이미지 파일 읽기 실패: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("FitRoom 콤보 작업 생성 실패 (URL 방식)", e);
+            throw new RuntimeException("FitRoom 콤보 작업 생성 실패 (URL 방식): " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * 작업 완료까지 대기 (폴링)
      */
     public String waitForCompletion(String taskId) {

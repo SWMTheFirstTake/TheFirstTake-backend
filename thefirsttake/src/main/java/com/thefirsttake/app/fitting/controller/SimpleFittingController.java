@@ -121,21 +121,50 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOnCombo(
-            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("model_image") MultipartFile modelImage,
-            @Parameter(name = "cloth_image", description = "장바구니에 있는 상의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("cloth_image") MultipartFile clothImage,
-            @Parameter(name = "lower_cloth_image", description = "장바구니에 있는 하의 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("lower_cloth_image") MultipartFile lowerClothImage,
+            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam(value = "model_image", required = false) MultipartFile modelImage,
+            @Parameter(name = "model_image_url", description = "모델 이미지 URL (model_image 대신 사용 가능)", required = false, example = "https://example.com/model.jpg")
+            @RequestParam(value = "model_image_url", required = false) String modelImageUrl,
+            @Parameter(name = "cloth_image", description = "장바구니에 있는 상의 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam(value = "cloth_image", required = false) MultipartFile clothImage,
+            @Parameter(name = "cloth_image_url", description = "상의 이미지 URL (cloth_image 대신 사용 가능)", required = false, example = "https://example.com/top.jpg")
+            @RequestParam(value = "cloth_image_url", required = false) String clothImageUrl,
+            @Parameter(name = "lower_cloth_image", description = "장바구니에 있는 하의 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam(value = "lower_cloth_image", required = false) MultipartFile lowerClothImage,
+            @Parameter(name = "lower_cloth_image_url", description = "하의 이미지 URL (lower_cloth_image 대신 사용 가능)", required = false, example = "https://example.com/bottom.jpg")
+            @RequestParam(value = "lower_cloth_image_url", required = false) String lowerClothImageUrl,
             @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
-            log.info("콤보 가상피팅 시작: hdMode={}", hdMode);
+            log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}", 
+                hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl);
+            
+            // 파라미터 유효성 검사
+            if ((modelImage == null && modelImageUrl == null)) {
+                log.warn("모델 이미지가 제공되지 않았습니다.");
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("모델 이미지(파일 또는 URL)가 필요합니다."));
+            }
+            
+            if ((clothImage == null && clothImageUrl == null) || 
+                (lowerClothImage == null && lowerClothImageUrl == null)) {
+                log.warn("상의 또는 하의 이미지가 제공되지 않았습니다.");
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("상의와 하의 이미지(파일 또는 URL)가 필요합니다."));
+            }
             
             // 1. FitRoom API로 콤보 작업 생성
-            String taskId = fitRoomClient.createComboTask(modelImage, clothImage, lowerClothImage, hdMode);
-            log.info("FitRoom 콤보 작업 생성 완료: taskId={}", taskId);
+            String taskId;
+            if (modelImageUrl != null || clothImageUrl != null || lowerClothImageUrl != null) {
+                // URL 방식 사용 (모델, 상의, 하의 중 하나라도 URL이면)
+                taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, clothImageUrl, lowerClothImageUrl, hdMode);
+                log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
+            } else {
+                // 파일 방식 사용 (모든 이미지가 파일인 경우)
+                taskId = fitRoomClient.createComboTask(modelImage, clothImage, lowerClothImage, hdMode);
+                log.info("FitRoom 콤보 작업 생성 완료 (파일 방식): taskId={}", taskId);
+            }
             
             // 2. 작업 완료까지 대기 (폴링)
             String downloadUrl = fitRoomClient.waitForCompletion(taskId);
