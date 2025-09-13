@@ -52,6 +52,8 @@ import java.util.List;
 import java.io.IOException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 
 
 @RestController
@@ -1306,6 +1308,28 @@ public class ChatController {
     // SSE 연결 메트릭
     sseConnectionCounter.increment();
     Timer.Sample connectionTimer = Timer.start();
+    
+    // 타임아웃 기반 강제 종료를 위한 타이머
+    final AtomicBoolean forceCompleted = new AtomicBoolean(false);
+    CompletableFuture.delayedExecutor(60, TimeUnit.SECONDS).execute(() -> {
+        if (!forceCompleted.get()) {
+            log.warn("⏰ SSE 연결 강제 타임아웃: connectionId={}", connectionId);
+            cancelled.set(true);
+            
+            // 강제 종료 시 메트릭 업데이트
+            connectionTimer.stop(sseConnectionDurationTimer);
+            totalResponseTimer.stop(sseApiTotalResponseTimer);
+            sseApiFailureCounter.increment(); // 타임아웃은 실패로 간주
+            sseDisconnectionCounter.increment();
+            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "force_timeout", connectionId);
+            
+            try {
+                emitter.complete();
+            } catch (Exception e) {
+                log.warn("강제 종료 중 오류: {}", e.getMessage());
+            }
+        }
+    });
 
     // SSE 수명주기 훅: 연결 종료/타임아웃/에러 시 취소 플래그 설정
     emitter.onCompletion(() -> {
@@ -1603,6 +1627,7 @@ public class ChatController {
                             emitter.send(SseEmitter.event().name("final_complete").data(finalJson));
                             
                             // 명시적 SSE 연결 종료
+                            forceCompleted.set(true);
                             emitter.complete();
                             return; // 루프 종료
                         } catch (Exception e) {
@@ -1618,7 +1643,10 @@ public class ChatController {
                 }
             } catch (IOException ignored) {}
         } finally {
-            try { emitter.complete(); } catch (Exception ignore) {}
+            try { 
+                forceCompleted.set(true);
+                emitter.complete(); 
+            } catch (Exception ignore) {}
         }
     });
 
