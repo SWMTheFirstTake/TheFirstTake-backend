@@ -93,6 +93,7 @@ public class ChatController {
     
     // 새로운 전문가별 메트릭
     private final MeterRegistry meterRegistry;
+    private final Counter llmApiCallCounterByExpert;
     
     // SSE API 전체 응답 시간 메트릭
     private final Timer sseApiTotalResponseTimer;
@@ -144,6 +145,7 @@ public class ChatController {
                          Counter productSearchApiFailureCounter,
                          Timer productSearchApiResponseTimer,
                          MeterRegistry meterRegistry,
+                         Counter llmApiCallCounterByExpert,
                          Timer sseApiTotalResponseTimer,
                          Counter sseApiTotalCounter,
                          Counter sseApiSuccessCounter,
@@ -182,6 +184,7 @@ public class ChatController {
         this.productSearchApiFailureCounter = productSearchApiFailureCounter;
         this.productSearchApiResponseTimer = productSearchApiResponseTimer;
         this.meterRegistry = meterRegistry;
+        this.llmApiCallCounterByExpert = llmApiCallCounterByExpert;
         this.sseApiTotalResponseTimer = sseApiTotalResponseTimer;
         this.sseApiTotalCounter = sseApiTotalCounter;
         this.sseApiSuccessCounter = sseApiSuccessCounter;
@@ -1467,11 +1470,7 @@ public class ChatController {
                 
                 // LLM API 호출 메트릭 (전문가별)
                 llmApiCallCounter.increment();
-                Counter.builder("llm_api_calls_by_expert_total")
-                        .description("Total number of LLM API calls by expert")
-                        .tag("expert_type", curExpert)
-                        .register(meterRegistry)
-                        .increment();
+                llmApiCallCounterByExpert.increment();
                 Timer.Sample llmTimer = Timer.start();
                 
                 ResponseEntity<String> response = restTemplate.exchange(
