@@ -17,6 +17,7 @@ import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
+import org.springframework.data.redis.core.RedisTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import java.util.concurrent.ConcurrentHashMap;
@@ -77,6 +78,7 @@ public class ChatController {
     private final ProductSearchService productSearchService;
     private final ProductCacheService productCacheService;
     private final RestTemplate restTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
     
     // 메트릭 관련 의존성
     private final Counter sseConnectionCounter;
@@ -133,6 +135,7 @@ public class ChatController {
                          ProductSearchService productSearchService,
                          ProductCacheService productCacheService,
                          RestTemplate restTemplate,
+                         RedisTemplate<String, String> redisTemplate,
                          Counter sseConnectionCounter,
                          Counter sseDisconnectionCounter,
                          Timer sseConnectionDurationTimer,
@@ -172,6 +175,7 @@ public class ChatController {
         this.productSearchService = productSearchService;
         this.productCacheService = productCacheService;
         this.restTemplate = restTemplate;
+        this.redisTemplate = redisTemplate;
         this.sseConnectionCounter = sseConnectionCounter;
         this.sseDisconnectionCounter = sseDisconnectionCounter;
         this.sseConnectionDurationTimer = sseConnectionDurationTimer;
@@ -1576,6 +1580,22 @@ public class ChatController {
                             }
                             productImageUrls = productSearchService.extractProductImageUrls(searchResult);
                             productIds = productCacheService.extractProductIds(searchResult);
+                            
+                            // product URL을 Redis에 저장 (600분 만료)
+                            for (int i = 0; i < productIds.size() && i < productImageUrls.size(); i++) {
+                                try {
+                                    String productId = productIds.get(i);
+                                    String productUrl = productImageUrls.get(i);
+                                    if (productId != null && productUrl != null && !productId.trim().isEmpty() && !productUrl.trim().isEmpty()) {
+                                        String redisKey = "product_url_" + productId.trim();
+                                        redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                                        log.info("Product URL saved to Redis from search result: key={}, url={}, ttl=600min", redisKey, productUrl.trim());
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Failed to save product URL to Redis from search result: productId={}, productUrl={}, error={}", 
+                                        productIds.get(i), productImageUrls.get(i), e.getMessage());
+                                }
+                            }
                             
                             int minSize = Math.min(productImageUrls.size(), productIds.size());
                             for (int i = 0; i < minSize; i++) {

@@ -3,6 +3,7 @@ package com.thefirsttake.app.fitting.controller;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.fitting.client.FitRoomApiClient;
 import com.thefirsttake.app.fitting.dto.response.FittingResponse;
+import org.springframework.data.redis.core.RedisTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -26,10 +27,12 @@ public class SimpleFittingController {
     
     private final FitRoomApiClient fitRoomClient;
     private final RestTemplate restTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
     
-    public SimpleFittingController(FitRoomApiClient fitRoomClient, RestTemplate restTemplate) {
+    public SimpleFittingController(FitRoomApiClient fitRoomClient, RestTemplate restTemplate, RedisTemplate<String, String> redisTemplate) {
         this.fitRoomClient = fitRoomClient;
         this.restTemplate = restTemplate;
+        this.redisTemplate = redisTemplate;
     }
     
     /**
@@ -38,10 +41,10 @@ public class SimpleFittingController {
     @PostMapping("/try-on")
     @Operation(
         summary = "가상피팅 실행",
-        description = "모델 이미지와 장바구니에 있는 옷 이미지를 받아서 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
+        description = "모델 이미지와 상의/하의 product_id를 받아서 Redis에서 URL을 조회하고 가상피팅을 실행합니다.\n\n" +
                      "**Content-Type**: multipart/form-data\n\n" +
-                     "**주의**: model_image와 cloth_image(장바구니에 있는 옷)는 이미지 파일입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
-                     "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
+                     "**주의**: model_image는 파일이고, upper_product_id와 lower_product_id는 Redis에서 URL을 조회하는 키입니다.\n\n" +
+                     "**Postman 테스트 시**: form-data로 설정하고 model_image는 File 타입으로, product_id들은 Text 타입으로 선택하세요."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -58,19 +61,67 @@ public class SimpleFittingController {
     public ResponseEntity<CommonResponse> tryOn(
             @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("model_image") MultipartFile modelImage,
-            @Parameter(name = "cloth_image", description = "장바구니에 있는 옷 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam("cloth_image") MultipartFile clothImage,
-            @Parameter(name = "cloth_type", description = "옷 종류 (upper: 상의, lower: 하의)", required = true, example = "upper")
-            @RequestParam("cloth_type") String clothType,
+            @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = false, example = "12345")
+            @RequestParam(value = "upper_product_id", required = false) String upperProductId,
+            @Parameter(name = "lower_product_id", description = "하의 상품 ID (Redis에서 URL 조회)", required = false, example = "67890")
+            @RequestParam(value = "lower_product_id", required = false) String lowerProductId,
             @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
-            log.info("가상피팅 시작: clothType={}, hdMode={}", clothType, hdMode);
+            log.info("가상피팅 시작: upperProductId={}, lowerProductId={}, hdMode={}", upperProductId, lowerProductId, hdMode);
             
-            // 1. FitRoom API로 작업 생성
-            String taskId = fitRoomClient.createTask(modelImage, clothImage, clothType, hdMode);
-            log.info("FitRoom 작업 생성 완료: taskId={}", taskId);
+            // 파라미터 유효성 검사
+            if ((upperProductId == null || upperProductId.trim().isEmpty()) && 
+                (lowerProductId == null || lowerProductId.trim().isEmpty())) {
+                log.warn("상의 또는 하의 product_id가 제공되지 않았습니다.");
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("상의 또는 하의 product_id가 필요합니다."));
+            }
+            
+            // Redis에서 product_id로 URL 조회
+            String upperClothImageUrl = null;
+            String lowerClothImageUrl = null;
+            
+            if (upperProductId != null && !upperProductId.trim().isEmpty()) {
+                try {
+                    String redisKey = "product_url_" + upperProductId.trim();
+                    upperClothImageUrl = redisTemplate.opsForValue().get(redisKey);
+                    if (upperClothImageUrl != null) {
+                        log.info("Redis에서 상의 URL 조회 성공: productId={}, url={}", upperProductId, upperClothImageUrl);
+                    } else {
+                        log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
+                    }
+                } catch (Exception e) {
+                    log.warn("Redis에서 상의 URL 조회 실패: productId={}, error={}", upperProductId, e.getMessage());
+                }
+            }
+            
+            if (lowerProductId != null && !lowerProductId.trim().isEmpty()) {
+                try {
+                    String redisKey = "product_url_" + lowerProductId.trim();
+                    lowerClothImageUrl = redisTemplate.opsForValue().get(redisKey);
+                    if (lowerClothImageUrl != null) {
+                        log.info("Redis에서 하의 URL 조회 성공: productId={}, url={}", lowerProductId, lowerClothImageUrl);
+                    } else {
+                        log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
+                    }
+                } catch (Exception e) {
+                    log.warn("Redis에서 하의 URL 조회 실패: productId={}, error={}", lowerProductId, e.getMessage());
+                }
+            }
+            
+            // URL이 조회되지 않은 경우 에러 반환
+            if ((upperProductId != null && upperClothImageUrl == null) || 
+                (lowerProductId != null && lowerClothImageUrl == null)) {
+                log.warn("일부 상품 URL을 Redis에서 찾을 수 없습니다.");
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("일부 상품 URL을 찾을 수 없습니다. product_id를 확인해주세요."));
+            }
+            
+            // 1. FitRoom API로 콤보 작업 생성 (상의와 하의 모두 URL 방식)
+            String taskId = fitRoomClient.createComboTaskWithUrls(modelImage, null, upperClothImageUrl, lowerClothImageUrl, hdMode);
+            log.info("FitRoom 콤보 작업 생성 완료: taskId={}", taskId);
             
             // 2. 작업 완료까지 대기 (폴링)
             String downloadUrl = fitRoomClient.waitForCompletion(taskId);
@@ -79,7 +130,7 @@ public class SimpleFittingController {
             // 3. 결과 반환
             FittingResponse response = FittingResponse.builder()
                 .success(true)
-                .message("가상피팅이 완료되었습니다.")
+                .message("콤보 가상피팅이 완료되었습니다.")
                 .downloadUrl(downloadUrl)
                 .taskId(taskId)
                 .build();
@@ -87,10 +138,10 @@ public class SimpleFittingController {
             return ResponseEntity.ok(CommonResponse.success(response));
                 
         } catch (Exception e) {
-            log.error("가상피팅 실패", e);
+            log.error("콤보 가상피팅 실패", e);
             FittingResponse errorResponse = FittingResponse.builder()
                 .success(false)
-                .message("가상피팅 처리 중 오류가 발생했습니다: " + e.getMessage())
+                .message("콤보 가상피팅 처리 중 오류가 발생했습니다: " + e.getMessage())
                 .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CommonResponse.fail(errorResponse.getMessage()));
@@ -133,12 +184,52 @@ public class SimpleFittingController {
             @RequestParam(value = "lower_cloth_image", required = false) MultipartFile lowerClothImage,
             @Parameter(name = "lower_cloth_image_url", description = "하의 이미지 URL (lower_cloth_image 대신 사용 가능)", required = false, example = "https://example.com/bottom.jpg")
             @RequestParam(value = "lower_cloth_image_url", required = false) String lowerClothImageUrl,
+            @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = false, example = "12345")
+            @RequestParam(value = "upper_product_id", required = false) String upperProductId,
+            @Parameter(name = "lower_product_id", description = "하의 상품 ID (Redis에서 URL 조회)", required = false, example = "67890")
+            @RequestParam(value = "lower_product_id", required = false) String lowerProductId,
             @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
-            log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}", 
-                hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl);
+            log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}, upperProductId={}, lowerProductId={}", 
+                hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl, upperProductId, lowerProductId);
+            
+            // Redis에서 product_id로 URL 조회
+            String redisClothImageUrl = null;
+            String redisLowerClothImageUrl = null;
+            
+            if (upperProductId != null && !upperProductId.trim().isEmpty()) {
+                try {
+                    String redisKey = "product_url_" + upperProductId.trim();
+                    redisClothImageUrl = redisTemplate.opsForValue().get(redisKey);
+                    if (redisClothImageUrl != null) {
+                        log.info("Redis에서 상의 URL 조회 성공: productId={}, url={}", upperProductId, redisClothImageUrl);
+                    } else {
+                        log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
+                    }
+                } catch (Exception e) {
+                    log.warn("Redis에서 상의 URL 조회 실패: productId={}, error={}", upperProductId, e.getMessage());
+                }
+            }
+            
+            if (lowerProductId != null && !lowerProductId.trim().isEmpty()) {
+                try {
+                    String redisKey = "product_url_" + lowerProductId.trim();
+                    redisLowerClothImageUrl = redisTemplate.opsForValue().get(redisKey);
+                    if (redisLowerClothImageUrl != null) {
+                        log.info("Redis에서 하의 URL 조회 성공: productId={}, url={}", lowerProductId, redisLowerClothImageUrl);
+                    } else {
+                        log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
+                    }
+                } catch (Exception e) {
+                    log.warn("Redis에서 하의 URL 조회 실패: productId={}, error={}", lowerProductId, e.getMessage());
+                }
+            }
+            
+            // 최종 URL 결정 (Redis URL이 우선, 없으면 파라미터 URL 사용)
+            String finalClothImageUrl = redisClothImageUrl != null ? redisClothImageUrl : clothImageUrl;
+            String finalLowerClothImageUrl = redisLowerClothImageUrl != null ? redisLowerClothImageUrl : lowerClothImageUrl;
             
             // 파라미터 유효성 검사
             if ((modelImage == null && modelImageUrl == null)) {
@@ -147,8 +238,8 @@ public class SimpleFittingController {
                     .body(CommonResponse.fail("모델 이미지(파일 또는 URL)가 필요합니다."));
             }
             
-            if ((clothImage == null && clothImageUrl == null) || 
-                (lowerClothImage == null && lowerClothImageUrl == null)) {
+            if ((clothImage == null && finalClothImageUrl == null) || 
+                (lowerClothImage == null && finalLowerClothImageUrl == null)) {
                 log.warn("상의 또는 하의 이미지가 제공되지 않았습니다.");
                 return ResponseEntity.badRequest()
                     .body(CommonResponse.fail("상의와 하의 이미지(파일 또는 URL)가 필요합니다."));
@@ -156,9 +247,9 @@ public class SimpleFittingController {
             
             // 1. FitRoom API로 콤보 작업 생성
             String taskId;
-            if (modelImageUrl != null || clothImageUrl != null || lowerClothImageUrl != null) {
+            if (modelImageUrl != null || finalClothImageUrl != null || finalLowerClothImageUrl != null) {
                 // URL 방식 사용 (모델, 상의, 하의 중 하나라도 URL이면)
-                taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, clothImageUrl, lowerClothImageUrl, hdMode);
+                taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl, hdMode);
                 log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
             } else {
                 // 파일 방식 사용 (모든 이미지가 파일인 경우)
@@ -359,5 +450,41 @@ public class SimpleFittingController {
             @PathVariable String taskId) {
         // 나중에 비동기 처리가 필요할 때 구현할 수 있음
         return ResponseEntity.ok("Status check endpoint - to be implemented for async processing");
+    }
+    
+    /**
+     * URL에서 이미지 다운로드
+     */
+    private byte[] downloadImageFromUrl(String imageUrl) {
+        try {
+            log.info("=== 이미지 다운로드 시작 ===");
+            log.info("원본 URL: {}", imageUrl);
+            log.info("URL 길이: {} characters", imageUrl.length());
+            log.info("URL에 & 포함 여부: {}", imageUrl.contains("&"));
+            log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
+            
+            // URL 디코딩 시도
+            String decodedUrl = imageUrl;
+            try {
+                decodedUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
+                log.info("디코딩된 URL: {}", decodedUrl);
+                log.info("디코딩 후 URL에 & 포함 여부: {}", decodedUrl.contains("&"));
+            } catch (Exception e) {
+                log.warn("URL 디코딩 실패, 원본 URL 사용: {}", e.getMessage());
+            }
+            
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(decodedUrl, byte[].class);
+            
+            if (response.getBody() == null || response.getBody().length == 0) {
+                throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
+            }
+            
+            log.info("이미지 다운로드 완료: {} ({} bytes)", imageUrl, response.getBody().length);
+            return response.getBody();
+            
+        } catch (Exception e) {
+            log.error("이미지 다운로드 실패: {}", imageUrl, e);
+            throw new RuntimeException("이미지 다운로드 실패: " + e.getMessage(), e);
+        }
     }
 }
