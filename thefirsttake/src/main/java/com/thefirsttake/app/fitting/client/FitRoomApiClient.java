@@ -153,24 +153,9 @@ public class FitRoomApiClient {
             log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
             log.info("URL에 X-Amz 포함 여부: {}", imageUrl.contains("X-Amz"));
             
-            // URL 디코딩 시도 (여러 번 디코딩)
+            // Base64 디코딩된 URL을 그대로 사용 (URL 디코딩 하지 않음)
             String decodedUrl = imageUrl;
-            try {
-                // 첫 번째 디코딩
-                decodedUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
-                log.info("첫 번째 디코딩된 URL: {}", decodedUrl);
-                
-                // 두 번째 디코딩 (이중 인코딩된 경우 대비)
-                if (decodedUrl.contains("%")) {
-                    decodedUrl = java.net.URLDecoder.decode(decodedUrl, "UTF-8");
-                    log.info("두 번째 디코딩된 URL: {}", decodedUrl);
-                }
-                
-                log.info("최종 디코딩된 URL: {}", decodedUrl);
-                log.info("디코딩 후 URL에 & 포함 여부: {}", decodedUrl.contains("&"));
-            } catch (Exception e) {
-                log.warn("URL 디코딩 실패, 원본 URL 사용: {}", e.getMessage());
-            }
+            log.info("Base64 디코딩된 URL을 그대로 사용: {}", decodedUrl);
             
             ResponseEntity<byte[]> response = restTemplate.getForEntity(decodedUrl, byte[].class);
             
