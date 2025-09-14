@@ -1581,15 +1581,17 @@ public class ChatController {
                             productImageUrls = productSearchService.extractProductImageUrls(searchResult);
                             productIds = productCacheService.extractProductIds(searchResult);
                             
-                            // product URL을 Redis에 저장 (600분 만료)
+                            // product URL을 Redis에 저장 (600분 만료) - base64 인코딩
                             for (int i = 0; i < productIds.size() && i < productImageUrls.size(); i++) {
                                 try {
                                     String productId = productIds.get(i);
                                     String productUrl = productImageUrls.get(i);
                                     if (productId != null && productUrl != null && !productId.trim().isEmpty() && !productUrl.trim().isEmpty()) {
                                         String redisKey = "product_url_" + productId.trim();
-                                        redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                        log.info("Product URL saved to Redis from search result: key={}, url={}, ttl=600min", redisKey, productUrl.trim());
+                                        // URL을 base64로 인코딩해서 저장
+                                        String encodedUrl = java.util.Base64.getEncoder().encodeToString(productUrl.trim().getBytes("UTF-8"));
+                                        redisTemplate.opsForValue().set(redisKey, encodedUrl, 36000, java.util.concurrent.TimeUnit.SECONDS);
+                                        log.info("Product URL saved to Redis from search result (base64 encoded): key={}, originalUrl={}, ttl=600min", redisKey, productUrl.trim());
                                     }
                                 } catch (Exception e) {
                                     log.warn("Failed to save product URL to Redis from search result: productId={}, productUrl={}, error={}", 
