@@ -69,6 +69,7 @@ public class SimpleFittingController {
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
+            log.info("=== tryOn 메서드 시작 ===");
             log.info("가상피팅 시작: upperProductId={}, lowerProductId={}, hdMode={}", upperProductId, lowerProductId, hdMode);
             
             // 파라미터 유효성 검사
@@ -126,6 +127,7 @@ public class SimpleFittingController {
             }
             
             // 1. FitRoom API로 콤보 작업 생성 (상의와 하의 모두 URL 방식)
+            log.info("FitRoom API 호출 전 URL 확인: upperClothImageUrl={}, lowerClothImageUrl={}", upperClothImageUrl, lowerClothImageUrl);
             String taskId = fitRoomClient.createComboTaskWithUrls(modelImage, null, upperClothImageUrl, lowerClothImageUrl, hdMode);
             log.info("FitRoom 콤보 작업 생성 완료: taskId={}", taskId);
             
@@ -198,6 +200,7 @@ public class SimpleFittingController {
             @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
         
         try {
+            log.info("=== tryOnCombo 메서드 시작 ===");
             log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}, upperProductId={}, lowerProductId={}", 
                 hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl, upperProductId, lowerProductId);
             
@@ -241,6 +244,8 @@ public class SimpleFittingController {
             String finalClothImageUrl = redisClothImageUrl != null ? redisClothImageUrl : clothImageUrl;
             String finalLowerClothImageUrl = redisLowerClothImageUrl != null ? redisLowerClothImageUrl : lowerClothImageUrl;
             
+            log.info("최종 URL 결정: finalClothImageUrl={}, finalLowerClothImageUrl={}", finalClothImageUrl, finalLowerClothImageUrl);
+            
             // 파라미터 유효성 검사
             if ((modelImage == null && modelImageUrl == null)) {
                 log.warn("모델 이미지가 제공되지 않았습니다.");
@@ -259,6 +264,8 @@ public class SimpleFittingController {
             String taskId;
             if (modelImageUrl != null || finalClothImageUrl != null || finalLowerClothImageUrl != null) {
                 // URL 방식 사용 (모델, 상의, 하의 중 하나라도 URL이면)
+                log.info("FitRoom API 호출 전 URL 확인: modelImageUrl={}, finalClothImageUrl={}, finalLowerClothImageUrl={}", 
+                    modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl);
                 taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl, hdMode);
                 log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
             } else {
