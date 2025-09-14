@@ -151,6 +151,7 @@ public class FitRoomApiClient {
             log.info("URL 길이: {} characters", imageUrl.length());
             log.info("URL에 & 포함 여부: {}", imageUrl.contains("&"));
             log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
+            log.info("URL에 X-Amz 포함 여부: {}", imageUrl.contains("X-Amz"));
             
             // URL 디코딩 시도
             String decodedUrl = imageUrl;
@@ -184,6 +185,11 @@ public class FitRoomApiClient {
     public String createComboTaskWithUrls(MultipartFile modelImage, String modelImageUrl, 
                                         String clothImageUrl, String lowerClothImageUrl, boolean hdMode) {
         try {
+            log.info("=== createComboTaskWithUrls 호출 ===");
+            log.info("modelImageUrl: {}", modelImageUrl);
+            log.info("clothImageUrl: {}", clothImageUrl);
+            log.info("lowerClothImageUrl: {}", lowerClothImageUrl);
+            
             // Multipart 데이터 구성
             MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
             

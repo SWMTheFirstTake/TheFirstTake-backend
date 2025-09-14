@@ -88,9 +88,10 @@ public class SimpleFittingController {
                     String redisKey = "product_url_" + upperProductId.trim();
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
+                        log.info("Redis에서 상의 encoded URL 조회: productId={}, encodedUrl={}", upperProductId, encodedUrl);
                         // base64 디코딩
                         upperClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                        log.info("Redis에서 상의 URL 조회 성공 (base64 디코딩): productId={}, url={}", upperProductId, upperClothImageUrl);
+                        log.info("Redis에서 상의 URL 조회 성공 (base64 디코딩): productId={}, decodedUrl={}", upperProductId, upperClothImageUrl);
                     } else {
                         log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
                     }
@@ -104,9 +105,10 @@ public class SimpleFittingController {
                     String redisKey = "product_url_" + lowerProductId.trim();
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
+                        log.info("Redis에서 하의 encoded URL 조회: productId={}, encodedUrl={}", lowerProductId, encodedUrl);
                         // base64 디코딩
                         lowerClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                        log.info("Redis에서 하의 URL 조회 성공 (base64 디코딩): productId={}, url={}", lowerProductId, lowerClothImageUrl);
+                        log.info("Redis에서 하의 URL 조회 성공 (base64 디코딩): productId={}, decodedUrl={}", lowerProductId, lowerClothImageUrl);
                     } else {
                         log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
                     }
