@@ -169,7 +169,11 @@ public class FitRoomApiClient {
             return response.getBody();
             
         } catch (Exception e) {
-            log.error("이미지 다운로드 실패: {}", imageUrl, e);
+            log.error("=== 이미지 다운로드 실패 상세 정보 ===");
+            log.error("실패한 URL: {}", imageUrl);
+            log.error("에러 타입: {}", e.getClass().getSimpleName());
+            log.error("에러 메시지: {}", e.getMessage());
+            log.error("에러 스택 트레이스:", e);
             throw new RuntimeException("이미지 다운로드 실패: " + e.getMessage(), e);
         }
     }
