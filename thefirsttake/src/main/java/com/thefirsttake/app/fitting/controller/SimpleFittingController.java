@@ -318,14 +318,18 @@ public class SimpleFittingController {
             
             // 1. FitRoom API로 콤보 작업 생성
             String taskId;
-            if (modelImageUrl != null || finalClothImageUrl != null || finalLowerClothImageUrl != null) {
-                // URL 방식 사용 (모델, 상의, 하의 중 하나라도 URL이면)
-                log.info("FitRoom API 호출 전 URL 확인: modelImageUrl={}, finalClothImageUrl={}, finalLowerClothImageUrl={}", 
-                    modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl);
+            if (finalClothImageUrl != null || finalLowerClothImageUrl != null) {
+                // 상의나 하의가 URL인 경우 - URL 방식 사용 (모델 이미지가 파일이어도 URL에서 다운로드해서 처리)
+                log.info("FitRoom API 호출 전 URL 방식: modelImage={}, finalClothImageUrl={}, finalLowerClothImageUrl={}", 
+                    modelImage != null ? "EXISTS" : "null", finalClothImageUrl, finalLowerClothImageUrl);
                 taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl, hdMode);
                 log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
             } else {
-                // 파일 방식 사용 (모든 이미지가 파일인 경우)
+                // 모든 이미지가 파일인 경우 - 파일 방식 사용
+                log.info("FitRoom API 호출 전 파일 방식: modelImage={}, clothImage={}, lowerClothImage={}", 
+                    modelImage != null ? "EXISTS" : "null", 
+                    clothImage != null ? "EXISTS" : "null", 
+                    lowerClothImage != null ? "EXISTS" : "null");
                 taskId = fitRoomClient.createComboTask(modelImage, clothImage, lowerClothImage, hdMode);
                 log.info("FitRoom 콤보 작업 생성 완료 (파일 방식): taskId={}", taskId);
             }
