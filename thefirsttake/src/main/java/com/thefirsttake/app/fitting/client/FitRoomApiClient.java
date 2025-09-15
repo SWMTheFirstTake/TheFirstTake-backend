@@ -155,11 +155,16 @@ public class FitRoomApiClient {
             String finalUrl = imageUrl;
             log.info("최종 다운로드 URL: {}", finalUrl);
             
-            // 간단한 GET 요청으로 다운로드 시도
-            log.info("RestTemplate GET 요청 시작: {}", finalUrl);
-            ResponseEntity<byte[]> response = restTemplate.getForEntity(finalUrl, byte[].class);
-            log.info("RestTemplate 응답 받음: status={}, contentLength={}", 
-                response.getStatusCode(), response.getBody() != null ? response.getBody().length : 0);
+        // GET 요청 헤더 설정
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        // GET 요청으로 다운로드 시도
+        log.info("RestTemplate GET 요청 시작: {}", finalUrl);
+        ResponseEntity<byte[]> response = restTemplate.exchange(finalUrl, HttpMethod.GET, entity, byte[].class);
+        log.info("RestTemplate 응답 받음: status={}, contentLength={}",
+            response.getStatusCode(), response.getBody() != null ? response.getBody().length : 0);
             
             if (response.getBody() == null || response.getBody().length == 0) {
                 throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
