@@ -142,28 +142,47 @@ public class FitRoomApiClient {
     }
     
     /**
-     * URL에서 이미지 다운로드
+     * URL에서 이미지 다운로드 (Base64 디코딩된 URL을 URL 디코딩하여 사용)
      */
     private byte[] downloadImageFromUrl(String imageUrl) {
         try {
             log.info("=== 이미지 다운로드 시작 ===");
-            log.info("원본 URL: {}", imageUrl);
+            log.info("Base64 디코딩된 URL: {}", imageUrl);
             log.info("URL 길이: {} characters", imageUrl.length());
             log.info("URL에 & 포함 여부: {}", imageUrl.contains("&"));
             log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
             log.info("URL에 X-Amz 포함 여부: {}", imageUrl.contains("X-Amz"));
             
-            // Base64 디코딩된 URL을 그대로 사용 (URL 디코딩 하지 않음)
-            String decodedUrl = imageUrl;
-            log.info("Base64 디코딩된 URL을 그대로 사용: {}", decodedUrl);
+            // Base64 디코딩된 URL을 URL 디코딩하여 최종 URL 생성
+            String finalUrl;
+            try {
+                finalUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
+                log.info("URL 디코딩 완료: {}", finalUrl);
+                log.info("URL 디코딩 후 & 포함 여부: {}", finalUrl.contains("&"));
+            } catch (Exception e) {
+                log.warn("URL 디코딩 실패, 원본 URL 사용: {}", e.getMessage());
+                finalUrl = imageUrl;
+            }
             
-            ResponseEntity<byte[]> response = restTemplate.getForEntity(decodedUrl, byte[].class);
+            // HTTP 헤더 설정 (일부 클라우드 스토리지에서 User-Agent 요구)
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            headers.set("Accept", "image/*,*/*;q=0.8");
+            
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                finalUrl, 
+                org.springframework.http.HttpMethod.GET, 
+                entity, 
+                byte[].class
+            );
             
             if (response.getBody() == null || response.getBody().length == 0) {
                 throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
             }
             
-            log.info("이미지 다운로드 완료: {} ({} bytes)", imageUrl, response.getBody().length);
+            log.info("이미지 다운로드 완료: {} ({} bytes)", finalUrl, response.getBody().length);
             return response.getBody();
             
         } catch (Exception e) {
