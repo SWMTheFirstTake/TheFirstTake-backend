@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/fitting")
@@ -211,12 +212,39 @@ public class SimpleFittingController {
             @Parameter(name = "lower_product_id", description = "하의 상품 ID (Redis에서 URL 조회)", required = false, example = "67890")
             @RequestParam(value = "lower_product_id", required = false) String lowerProductId,
             @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
-            @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode) {
+            @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode,
+            HttpServletRequest request) {
         
         try {
             log.info("=== tryOnCombo 메서드 시작 ===");
             log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}, upperProductId={}, lowerProductId={}", 
                 hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl, upperProductId, lowerProductId);
+            
+            // === 모델 이미지 파일 디버깅 ===
+            log.info("=== 모델 이미지 파일 디버깅 ===");
+            log.info("modelImage: {}", modelImage);
+            log.info("modelImage != null: {}", modelImage != null);
+            if (modelImage != null) {
+                log.info("modelImage.getSize(): {}", modelImage.getSize());
+                log.info("modelImage.getOriginalFilename(): {}", modelImage.getOriginalFilename());
+                log.info("modelImage.isEmpty(): {}", modelImage.isEmpty());
+            }
+            log.info("modelImageUrl: {}", modelImageUrl);
+            
+            // === 모든 MultipartFile 정보 ===
+            log.info("=== MultipartFile 정보 ===");
+            log.info("modelImage: {}", modelImage != null ? "EXISTS" : "NULL");
+            log.info("clothImage: {}", clothImage != null ? "EXISTS" : "NULL");
+            log.info("lowerClothImage: {}", lowerClothImage != null ? "EXISTS" : "NULL");
+            
+            // === 모든 요청 파라미터 ===
+            log.info("=== 모든 요청 파라미터 ===");
+            request.getParameterMap().forEach((key, value) -> {
+                log.info("Parameter: {} = {}", key, java.util.Arrays.toString(value));
+            });
+            
+            // === Content-Type 확인 ===
+            log.info("Content-Type: {}", request.getContentType());
             
             // Redis에서 product_id로 URL 조회
             String redisClothImageUrl = null;
