@@ -1589,16 +1589,14 @@ public class ChatController {
                                     if (productId != null && productUrl != null && !productId.trim().isEmpty() && !productUrl.trim().isEmpty()) {
                                         String redisKey = "product_url_" + productId.trim();
                                         try {
-                                            // URL 인코딩 후 Base64 인코딩하여 저장
-                                            String urlEncoded = java.net.URLEncoder.encode(productUrl.trim(), "UTF-8");
-                                            String base64Encoded = java.util.Base64.getEncoder().encodeToString(urlEncoded.getBytes("UTF-8"));
+                                            // Base64 인코딩만 사용 (presigned URL은 이미 완전한 URL이므로 URL 인코딩 불필요)
+                                            String base64Encoded = java.util.Base64.getEncoder().encodeToString(productUrl.trim().getBytes("UTF-8"));
                                             redisTemplate.opsForValue().set(redisKey, base64Encoded, 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.info("Product URL saved to Redis from search result (URL+Base64 encoded): key={}, originalUrl={}, ttl=600min", redisKey, productUrl.trim());
+                                            log.info("Product URL saved to Redis from search result (Base64 only): key={}, originalUrl={}, ttl=600min", redisKey, productUrl.trim());
                                         } catch (Exception encodingException) {
-                                            // URL 인코딩 실패 시 기존 방식 사용 (Base64만)
-                                            String encodedUrl = java.util.Base64.getEncoder().encodeToString(productUrl.trim().getBytes("UTF-8"));
-                                            redisTemplate.opsForValue().set(redisKey, encodedUrl, 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.warn("URL encoding failed, using Base64 only: key={}, error={}", redisKey, encodingException.getMessage());
+                                            // Base64 인코딩 실패 시 원본 URL 직접 저장
+                                            redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                                            log.warn("Base64 encoding failed, using original URL: key={}, error={}", redisKey, encodingException.getMessage());
                                         }
                                     }
                                 } catch (Exception e) {

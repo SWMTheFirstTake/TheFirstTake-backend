@@ -92,14 +92,13 @@ public class SimpleFittingController {
                     if (encodedUrl != null) {
                         log.info("Redis에서 상의 encoded URL 조회: productId={}, encodedUrl={}", upperProductId, encodedUrl);
                         try {
-                            // Base64 디코딩 후 URL 디코딩 수행 (ChatController에서 URL 인코딩 후 Base64 인코딩했으므로)
-                            String base64Decoded = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            upperClothImageUrl = java.net.URLDecoder.decode(base64Decoded, "UTF-8");
-                            log.info("Redis에서 상의 URL 조회 성공 (Base64+URL 디코딩): productId={}, decodedUrl={}", upperProductId, upperClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("디코딩 실패, Base64 디코딩만 사용: productId={}, error={}", upperProductId, e.getMessage());
-                            // 디코딩 실패 시 Base64 디코딩만 사용
+                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
                             upperClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
+                            log.info("Redis에서 상의 URL 조회 성공 (Base64 디코딩만): productId={}, decodedUrl={}", upperProductId, upperClothImageUrl);
+                        } catch (Exception e) {
+                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", upperProductId, e.getMessage());
+                            // Base64 디코딩 실패 시 원본 URL 사용
+                            upperClothImageUrl = encodedUrl;
                         }
                     } else {
                         log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
@@ -116,14 +115,13 @@ public class SimpleFittingController {
                     if (encodedUrl != null) {
                         log.info("Redis에서 하의 encoded URL 조회: productId={}, encodedUrl={}", lowerProductId, encodedUrl);
                         try {
-                            // Base64 디코딩 후 URL 디코딩 수행 (ChatController에서 URL 인코딩 후 Base64 인코딩했으므로)
-                            String base64Decoded = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            lowerClothImageUrl = java.net.URLDecoder.decode(base64Decoded, "UTF-8");
-                            log.info("Redis에서 하의 URL 조회 성공 (Base64+URL 디코딩): productId={}, decodedUrl={}", lowerProductId, lowerClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("디코딩 실패, Base64 디코딩만 사용: productId={}, error={}", lowerProductId, e.getMessage());
-                            // 디코딩 실패 시 Base64 디코딩만 사용
+                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
                             lowerClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
+                            log.info("Redis에서 하의 URL 조회 성공 (Base64 디코딩만): productId={}, decodedUrl={}", lowerProductId, lowerClothImageUrl);
+                        } catch (Exception e) {
+                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", lowerProductId, e.getMessage());
+                            // Base64 디코딩 실패 시 원본 URL 사용
+                            lowerClothImageUrl = encodedUrl;
                         }
                     } else {
                         log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
@@ -256,14 +254,13 @@ public class SimpleFittingController {
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
                         try {
-                            // Base64 디코딩 후 URL 디코딩 수행 (ChatController에서 URL 인코딩 후 Base64 인코딩했으므로)
-                            String base64Decoded = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            redisClothImageUrl = java.net.URLDecoder.decode(base64Decoded, "UTF-8");
-                            log.info("Redis에서 상의 URL 조회 성공 (Base64+URL 디코딩): productId={}, url={}", upperProductId, redisClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("디코딩 실패, Base64 디코딩만 사용: productId={}, error={}", upperProductId, e.getMessage());
-                            // 디코딩 실패 시 Base64 디코딩만 사용
+                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
                             redisClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
+                            log.info("Redis에서 상의 URL 조회 성공 (Base64 디코딩만): productId={}, url={}", upperProductId, redisClothImageUrl);
+                        } catch (Exception e) {
+                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", upperProductId, e.getMessage());
+                            // Base64 디코딩 실패 시 원본 URL 사용
+                            redisClothImageUrl = encodedUrl;
                         }
                     } else {
                         log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
@@ -279,14 +276,13 @@ public class SimpleFittingController {
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
                         try {
-                            // Base64 디코딩 후 URL 디코딩 수행 (ChatController에서 URL 인코딩 후 Base64 인코딩했으므로)
-                            String base64Decoded = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            redisLowerClothImageUrl = java.net.URLDecoder.decode(base64Decoded, "UTF-8");
-                            log.info("Redis에서 하의 URL 조회 성공 (Base64+URL 디코딩): productId={}, url={}", lowerProductId, redisLowerClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("디코딩 실패, Base64 디코딩만 사용: productId={}, error={}", lowerProductId, e.getMessage());
-                            // 디코딩 실패 시 Base64 디코딩만 사용
+                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
                             redisLowerClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
+                            log.info("Redis에서 하의 URL 조회 성공 (Base64 디코딩만): productId={}, url={}", lowerProductId, redisLowerClothImageUrl);
+                        } catch (Exception e) {
+                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", lowerProductId, e.getMessage());
+                            // Base64 디코딩 실패 시 원본 URL 사용
+                            redisLowerClothImageUrl = encodedUrl;
                         }
                     } else {
                         log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
