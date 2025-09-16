@@ -18,7 +18,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/fitting")
@@ -175,10 +174,9 @@ public class SimpleFittingController {
     @PostMapping("/try-on/combo")
     @Operation(
         summary = "콤보 가상피팅 실행",
-        description = "모델 이미지와 장바구니에 있는 상의, 하의 이미지를 받아서 동시에 입히는 가상피팅을 실행하고 결과 이미지의 다운로드 링크를 반환합니다.\n\n" +
-                     "**Content-Type**: multipart/form-data\n\n" +
-                     "**주의**: model_image, cloth_image(상의), lower_cloth_image(하의)는 파일 업로드입니다. Swagger UI에서는 string으로 표시되지만 실제로는 파일을 선택해야 합니다.\n\n" +
-                     "**Postman 테스트 시**: form-data로 설정하고 각 필드를 File 타입으로 선택하세요."
+        description = "모델 이미지 파일(model_image)과 상의/하의 상품 ID(upper_product_id, lower_product_id)만 받아, Redis에 저장된 이미지 URL로 콤보 가상피팅을 실행합니다.\n\n" +
+                     "필수 파라미터: model_image(파일), upper_product_id(Text), lower_product_id(Text)\n\n" +
+                     "**Content-Type**: multipart/form-data"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -193,56 +191,22 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOnCombo(
-            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam(value = "model_image", required = false) MultipartFile modelImage,
-            @Parameter(name = "model_image_url", description = "모델 이미지 URL (model_image 대신 사용 가능)", required = false, example = "https://example.com/model.jpg")
-            @RequestParam(value = "model_image_url", required = false) String modelImageUrl,
-            @Parameter(name = "cloth_image", description = "장바구니에 있는 상의 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam(value = "cloth_image", required = false) MultipartFile clothImage,
-            @Parameter(name = "cloth_image_url", description = "상의 이미지 URL (cloth_image 대신 사용 가능)", required = false, example = "https://example.com/top.jpg")
-            @RequestParam(value = "cloth_image_url", required = false) String clothImageUrl,
-            @Parameter(name = "lower_cloth_image", description = "장바구니에 있는 하의 사진 파일 (MultipartFile) - 파일 또는 URL", required = false, content = @Content(mediaType = "multipart/form-data"))
-            @RequestParam(value = "lower_cloth_image", required = false) MultipartFile lowerClothImage,
-            @Parameter(name = "lower_cloth_image_url", description = "하의 이미지 URL (lower_cloth_image 대신 사용 가능)", required = false, example = "https://example.com/bottom.jpg")
-            @RequestParam(value = "lower_cloth_image_url", required = false) String lowerClothImageUrl,
-            @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = false, example = "12345")
-            @RequestParam(value = "upper_product_id", required = false) String upperProductId,
-            @Parameter(name = "lower_product_id", description = "하의 상품 ID (Redis에서 URL 조회)", required = false, example = "67890")
-            @RequestParam(value = "lower_product_id", required = false) String lowerProductId,
-            @Parameter(name = "hd_mode", description = "HD 모드 여부", required = false, example = "false")
-            @RequestParam(value = "hd_mode", defaultValue = "false") boolean hdMode,
-            HttpServletRequest request) {
-        
+            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @RequestParam(value = "model_image", required = true) MultipartFile modelImage,
+            @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = true, example = "12345")
+            @RequestParam(value = "upper_product_id", required = true) String upperProductId,
+            @Parameter(name = "lower_product_id", description = "하의 상품 ID (Redis에서 URL 조회)", required = true, example = "67890")
+            @RequestParam(value = "lower_product_id", required = true) String lowerProductId) {
+        System.out.println(upperProductId);
+        System.out.println(lowerProductId);
         try {
             log.info("=== tryOnCombo 메서드 시작 ===");
-            log.info("콤보 가상피팅 시작: hdMode={}, modelImageUrl={}, clothImageUrl={}, lowerClothImageUrl={}, upperProductId={}, lowerProductId={}", 
-                hdMode, modelImageUrl, clothImageUrl, lowerClothImageUrl, upperProductId, lowerProductId);
-            
-            // === 모델 이미지 파일 디버깅 ===
-            log.info("=== 모델 이미지 파일 디버깅 ===");
-            log.info("modelImage: {}", modelImage);
-            log.info("modelImage != null: {}", modelImage != null);
-            if (modelImage != null) {
-                log.info("modelImage.getSize(): {}", modelImage.getSize());
-                log.info("modelImage.getOriginalFilename(): {}", modelImage.getOriginalFilename());
-                log.info("modelImage.isEmpty(): {}", modelImage.isEmpty());
-            }
-            log.info("modelImageUrl: {}", modelImageUrl);
-            
-            // === 모든 MultipartFile 정보 ===
-            log.info("=== MultipartFile 정보 ===");
-            log.info("modelImage: {}", modelImage != null ? "EXISTS" : "NULL");
-            log.info("clothImage: {}", clothImage != null ? "EXISTS" : "NULL");
-            log.info("lowerClothImage: {}", lowerClothImage != null ? "EXISTS" : "NULL");
-            
-            // === 모든 요청 파라미터 ===
-            log.info("=== 모든 요청 파라미터 ===");
-            request.getParameterMap().forEach((key, value) -> {
-                log.info("Parameter: {} = {}", key, java.util.Arrays.toString(value));
-            });
-            
-            // === Content-Type 확인 ===
-            log.info("Content-Type: {}", request.getContentType());
+            log.info("콤보 가상피팅 시작(원본): upperProductId={}, lowerProductId={}", upperProductId, lowerProductId);
+
+            // 입력값 정규화: 양끝의 따옴표(" or ') 제거 및 trim
+            upperProductId = normalizeProductId(upperProductId);
+            lowerProductId = normalizeProductId(lowerProductId);
+            log.info("콤보 가상피팅 시작(정규화): upperProductId={}, lowerProductId={}", upperProductId, lowerProductId);
             
             // Redis에서 product_id로 URL 조회
             String redisClothImageUrl = null;
@@ -253,20 +217,13 @@ public class SimpleFittingController {
                     String redisKey = "product_url_" + upperProductId.trim();
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
-                        try {
-                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
-                            redisClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            log.info("Redis에서 상의 URL 조회 성공 (Base64 디코딩만): productId={}, url={}", upperProductId, redisClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", upperProductId, e.getMessage());
-                            // Base64 디코딩 실패 시 원본 URL 사용
-                            redisClothImageUrl = encodedUrl;
-                        }
+                        // 인코딩 없이 원본 값을 그대로 사용 + 앞뒤 공백 제거
+                        redisClothImageUrl = encodedUrl.trim();
                     } else {
-                        log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
+                        // log.warn("Redis에서 상의 URL을 찾을 수 없음: productId={}", upperProductId);
                     }
                 } catch (Exception e) {
-                    log.warn("Redis에서 상의 URL 조회 실패: productId={}, error={}", upperProductId, e.getMessage());
+                    // log.warn("Redis에서 상의 URL 조회 실패: productId={}, error={}", upperProductId, e.getMessage());
                 }
             }
             
@@ -275,60 +232,43 @@ public class SimpleFittingController {
                     String redisKey = "product_url_" + lowerProductId.trim();
                     String encodedUrl = redisTemplate.opsForValue().get(redisKey);
                     if (encodedUrl != null) {
-                        try {
-                            // Base64 디코딩만 수행 (ChatController에서 Base64 인코딩만 사용)
-                            redisLowerClothImageUrl = new String(java.util.Base64.getDecoder().decode(encodedUrl), "UTF-8");
-                            log.info("Redis에서 하의 URL 조회 성공 (Base64 디코딩만): productId={}, url={}", lowerProductId, redisLowerClothImageUrl);
-                        } catch (Exception e) {
-                            log.warn("Base64 디코딩 실패, 원본 URL 사용: productId={}, error={}", lowerProductId, e.getMessage());
-                            // Base64 디코딩 실패 시 원본 URL 사용
-                            redisLowerClothImageUrl = encodedUrl;
-                        }
+                        // 인코딩 없이 원본 값을 그대로 사용 + 앞뒤 공백 제거
+                        redisLowerClothImageUrl = encodedUrl.trim();
                     } else {
-                        log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
+                        // log.warn("Redis에서 하의 URL을 찾을 수 없음: productId={}", lowerProductId);
                     }
                 } catch (Exception e) {
-                    log.warn("Redis에서 하의 URL 조회 실패: productId={}, error={}", lowerProductId, e.getMessage());
+                    // log.warn("Redis에서 하의 URL 조회 실패: productId={}, error={}", lowerProductId, e.getMessage());
                 }
             }
             
-            // 최종 URL 결정 (Redis URL이 우선, 없으면 파라미터 URL 사용)
-            String finalClothImageUrl = redisClothImageUrl != null ? redisClothImageUrl : clothImageUrl;
-            String finalLowerClothImageUrl = redisLowerClothImageUrl != null ? redisLowerClothImageUrl : lowerClothImageUrl;
-            
-            log.info("최종 URL 결정: finalClothImageUrl={}, finalLowerClothImageUrl={}", finalClothImageUrl, finalLowerClothImageUrl);
-            
             // 파라미터 유효성 검사
-            if ((modelImage == null && modelImageUrl == null)) {
+            if (modelImage == null || modelImage.isEmpty()) {
                 log.warn("모델 이미지가 제공되지 않았습니다.");
                 return ResponseEntity.badRequest()
-                    .body(CommonResponse.fail("모델 이미지(파일 또는 URL)가 필요합니다."));
+                    .body(CommonResponse.fail("모델 이미지 파일이 필요합니다."));
             }
-            
-            if ((clothImage == null && finalClothImageUrl == null) || 
-                (lowerClothImage == null && finalLowerClothImageUrl == null)) {
-                log.warn("상의 또는 하의 이미지가 제공되지 않았습니다.");
+
+            if (upperProductId == null || upperProductId.trim().isEmpty() ||
+                lowerProductId == null || lowerProductId.trim().isEmpty()) {
+                log.warn("상품 ID가 제공되지 않았습니다. upperProductId={}, lowerProductId={}", upperProductId, lowerProductId);
                 return ResponseEntity.badRequest()
-                    .body(CommonResponse.fail("상의와 하의 이미지(파일 또는 URL)가 필요합니다."));
+                    .body(CommonResponse.fail("상의/하의 product_id가 필요합니다."));
             }
-            
-            // 1. FitRoom API로 콤보 작업 생성
+
+            if (redisClothImageUrl == null || redisLowerClothImageUrl == null) {
+                log.warn("Redis에서 상품 URL을 찾을 수 없습니다. upperUrl={}, lowerUrl={}", redisClothImageUrl, redisLowerClothImageUrl);
+                String diag = buildUrlDiagnostics("upper", redisClothImageUrl) + "\n" + buildUrlDiagnostics("lower", redisLowerClothImageUrl);
+                return ResponseEntity.badRequest()
+                    .body(CommonResponse.fail("일부 상품 URL을 찾을 수 없습니다. product_id를 확인해주세요.\n" + diag));
+            }
+
+            // 1. FitRoom API로 콤보 작업 생성 (항상 URL 방식 사용)
             String taskId;
-            if (finalClothImageUrl != null || finalLowerClothImageUrl != null) {
-                // 상의나 하의가 URL인 경우 - URL 방식 사용 (모델 이미지가 파일이어도 URL에서 다운로드해서 처리)
-                log.info("FitRoom API 호출 전 URL 방식: modelImage={}, finalClothImageUrl={}, finalLowerClothImageUrl={}", 
-                    modelImage != null ? "EXISTS" : "null", finalClothImageUrl, finalLowerClothImageUrl);
-                taskId = fitRoomClient.createComboTaskWithUrls(modelImage, modelImageUrl, finalClothImageUrl, finalLowerClothImageUrl, hdMode);
-                log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
-            } else {
-                // 모든 이미지가 파일인 경우 - 파일 방식 사용
-                log.info("FitRoom API 호출 전 파일 방식: modelImage={}, clothImage={}, lowerClothImage={}", 
-                    modelImage != null ? "EXISTS" : "null", 
-                    clothImage != null ? "EXISTS" : "null", 
-                    lowerClothImage != null ? "EXISTS" : "null");
-                taskId = fitRoomClient.createComboTask(modelImage, clothImage, lowerClothImage, hdMode);
-                log.info("FitRoom 콤보 작업 생성 완료 (파일 방식): taskId={}", taskId);
-            }
+            log.info("FitRoom API 호출 전 URL 방식: modelImage={}, upperUrl={}, lowerUrl={}", 
+                modelImage != null ? "EXISTS" : "null", redisClothImageUrl, redisLowerClothImageUrl);
+            taskId = fitRoomClient.createComboTaskWithUrls(modelImage, null, redisClothImageUrl, redisLowerClothImageUrl, false);
+            log.info("FitRoom 콤보 작업 생성 완료 (URL 방식): taskId={}", taskId);
             
             // 2. 작업 완료까지 대기 (폴링)
             String downloadUrl = fitRoomClient.waitForCompletion(taskId);
@@ -536,17 +476,8 @@ public class SimpleFittingController {
             log.info("URL에 & 포함 여부: {}", imageUrl.contains("&"));
             log.info("URL에 %26 포함 여부: {}", imageUrl.contains("%26"));
             
-            // URL 디코딩 시도
-            String decodedUrl = imageUrl;
-            try {
-                decodedUrl = java.net.URLDecoder.decode(imageUrl, "UTF-8");
-                log.info("디코딩된 URL: {}", decodedUrl);
-                log.info("디코딩 후 URL에 & 포함 여부: {}", decodedUrl.contains("&"));
-            } catch (Exception e) {
-                log.warn("URL 디코딩 실패, 원본 URL 사용: {}", e.getMessage());
-            }
-            
-            ResponseEntity<byte[]> response = restTemplate.getForEntity(decodedUrl, byte[].class);
+            // presigned URL은 이미 완전한 형태이므로 추가 디코딩 없이 그대로 사용
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(imageUrl, byte[].class);
             
             if (response.getBody() == null || response.getBody().length == 0) {
                 throw new RuntimeException("다운로드된 이미지가 비어있습니다: " + imageUrl);
@@ -558,6 +489,54 @@ public class SimpleFittingController {
         } catch (Exception e) {
             log.error("이미지 다운로드 실패: {}", imageUrl, e);
             throw new RuntimeException("이미지 다운로드 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * product_id 입력값 정규화: 앞뒤 공백 제거 후 양끝의 따옴표(' 또는 ") 제거
+     */
+    private String normalizeProductId(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.length() >= 2) {
+            char first = s.charAt(0);
+            char last = s.charAt(s.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                s = s.substring(1, s.length() - 1).trim();
+            }
+        }
+        return s;
+    }
+
+    // 로그에 민감한 쿼리 파라미터가 있는 presigned URL을 출력하지 않도록 마스킹
+    private String maskUrlForLog(String url) {
+        try {
+            if (url == null) return null;
+            int q = url.indexOf('?');
+            if (q < 0) return url; // 쿼리 없음
+            String base = url.substring(0, q);
+            return base + "?[masked]";
+        } catch (Exception e) {
+            return "[mask-failed]";
+        }
+    }
+
+    private String buildUrlDiagnostics(String label, String url) {
+        try {
+            if (url == null) return label + ": url=null";
+            String head = url.substring(0, Math.min(50, url.length()));
+            String tail = url.substring(Math.max(0, url.length() - 50));
+            return String.format(
+                "%s: len=%d, http=%s, xamz=%s, head='%s', tail='%s'",
+                label,
+                url.length(),
+                String.valueOf(url.startsWith("http")),
+                String.valueOf(url.contains("X-Amz-")),
+                head,
+                tail
+            );
+        } catch (Exception e) {
+            return label + ": diag-failed=" + e.getMessage();
         }
     }
 }

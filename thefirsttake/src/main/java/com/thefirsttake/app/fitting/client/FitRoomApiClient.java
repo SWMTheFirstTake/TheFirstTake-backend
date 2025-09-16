@@ -160,9 +160,13 @@ public class FitRoomApiClient {
         headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
-        // GET 요청으로 다운로드 시도
+        // GET 요청으로 다운로드 시도 (이미 인코딩된 presigned URL을 그대로 사용)
         log.info("RestTemplate GET 요청 시작: {}", finalUrl);
-        ResponseEntity<byte[]> response = restTemplate.exchange(finalUrl, HttpMethod.GET, entity, byte[].class);
+        java.net.URI uri = org.springframework.web.util.UriComponentsBuilder
+            .fromUriString(finalUrl)
+            .build(true) // encoded=true: 이미 인코딩된 URL 그대로 사용
+            .toUri();
+        ResponseEntity<byte[]> response = restTemplate.exchange(uri, HttpMethod.GET, entity, byte[].class);
         log.info("RestTemplate 응답 받음: status={}, contentLength={}",
             response.getStatusCode(), response.getBody() != null ? response.getBody().length : 0);
             
@@ -182,6 +186,25 @@ public class FitRoomApiClient {
             throw new RuntimeException("이미지 다운로드 실패: " + e.getMessage(), e);
         }
     }
+
+    private String buildUrlDiagnostics(String label, String url) {
+        try {
+            if (url == null) return label + ": url=null";
+            String head = url.substring(0, Math.min(80, url.length()));
+            String tail = url.substring(Math.max(0, url.length() - 80));
+            return String.format(
+                "%sUrlDiag[len=%d,http=%s,xamz=%s,head='%s',tail='%s']",
+                label,
+                url.length(),
+                String.valueOf(url.startsWith("http")),
+                String.valueOf(url.contains("X-Amz-")),
+                head,
+                tail
+            );
+        } catch (Exception e) {
+            return label + ":diag-failed=" + e.getMessage();
+        }
+    }
     
     /**
      * FitRoom에 콤보 가상피팅 작업 생성 (URL 방식 - 모델, 상하의 모두 URL 지원)
@@ -194,6 +217,11 @@ public class FitRoomApiClient {
             log.info("modelImageUrl: {}", modelImageUrl);
             log.info("clothImageUrl: {}", clothImageUrl);
             log.info("lowerClothImageUrl: {}", lowerClothImageUrl);
+
+            // 앞뒤 공백 제거(개행/스페이스)만 수행. 내용은 절대 변경하지 않음
+            if (modelImageUrl != null) modelImageUrl = modelImageUrl.trim();
+            if (clothImageUrl != null) clothImageUrl = clothImageUrl.trim();
+            if (lowerClothImageUrl != null) lowerClothImageUrl = lowerClothImageUrl.trim();
             
             // Multipart 데이터 구성
             MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
@@ -220,7 +248,13 @@ public class FitRoomApiClient {
             
             // 상의 이미지 처리 (URL에서 다운로드)
             if (clothImageUrl != null) {
-                byte[] imageBytes = downloadImageFromUrl(clothImageUrl);
+                byte[] imageBytes;
+                try {
+                    imageBytes = downloadImageFromUrl(clothImageUrl);
+                } catch (Exception ex) {
+                    String diag = buildUrlDiagnostics("upper", clothImageUrl);
+                    throw new RuntimeException("상의 이미지 다운로드 실패: " + ex.getMessage() + " | " + diag, ex);
+                }
                 formData.add("cloth_image", new ByteArrayResource(imageBytes) {
                     @Override
                     public String getFilename() {
@@ -231,7 +265,13 @@ public class FitRoomApiClient {
             
             // 하의 이미지 처리 (URL에서 다운로드)
             if (lowerClothImageUrl != null) {
-                byte[] imageBytes = downloadImageFromUrl(lowerClothImageUrl);
+                byte[] imageBytes;
+                try {
+                    imageBytes = downloadImageFromUrl(lowerClothImageUrl);
+                } catch (Exception ex) {
+                    String diag = buildUrlDiagnostics("lower", lowerClothImageUrl);
+                    throw new RuntimeException("하의 이미지 다운로드 실패: " + ex.getMessage() + " | " + diag, ex);
+                }
                 formData.add("lower_cloth_image", new ByteArrayResource(imageBytes) {
                     @Override
                     public String getFilename() {
@@ -289,12 +329,14 @@ public class FitRoomApiClient {
                 
                 if ("COMPLETED".equals(status.getStatus())) {
                     if (status.getDownloadSignedUrl() == null) {
-                        throw new RuntimeException("완료되었지만 다운로드 URL이 없습니다.");
+                        String diag = String.format("status=%s, progress=%s, downloadUrl=null", status.getStatus(), status.getProgress());
+                        throw new RuntimeException("완료되었지만 다운로드 URL이 없습니다. | " + diag);
                     }
                     return status.getDownloadSignedUrl();
                     
                 } else if ("FAILED".equals(status.getStatus())) {
-                    throw new RuntimeException("FitRoom 작업 실패: " + status.getError());
+                    String diag = String.format("status=%s, progress=%s, error=%s", status.getStatus(), status.getProgress(), status.getError());
+                    throw new RuntimeException("FitRoom 작업 실패: " + (status.getError() != null ? status.getError() : "(no message)") + " | " + diag);
                 }
                 
                 attempt++;

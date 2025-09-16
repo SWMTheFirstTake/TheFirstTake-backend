@@ -1581,7 +1581,8 @@ public class ChatController {
                             productImageUrls = productSearchService.extractProductImageUrls(searchResult);
                             productIds = productCacheService.extractProductIds(searchResult);
                             
-                            // product URL을 Redis에 저장 (600분 만료) - base64 인코딩
+                            // product URL을 Redis에 저장 (600분 만료)
+                            // 인코딩/디코딩 없이 원본 presigned URL 그대로 저장
                             for (int i = 0; i < productIds.size() && i < productImageUrls.size(); i++) {
                                 try {
                                     String productId = productIds.get(i);
@@ -1589,14 +1590,13 @@ public class ChatController {
                                     if (productId != null && productUrl != null && !productId.trim().isEmpty() && !productUrl.trim().isEmpty()) {
                                         String redisKey = "product_url_" + productId.trim();
                                         try {
-                                            // Base64 인코딩만 사용 (presigned URL은 이미 완전한 URL이므로 URL 인코딩 불필요)
-                                            String base64Encoded = java.util.Base64.getEncoder().encodeToString(productUrl.trim().getBytes("UTF-8"));
-                                            redisTemplate.opsForValue().set(redisKey, base64Encoded, 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.info("Product URL saved to Redis from search result (Base64 only): key={}, originalUrl={}, ttl=600min", redisKey, productUrl.trim());
-                                        } catch (Exception encodingException) {
-                                            // Base64 인코딩 실패 시 원본 URL 직접 저장
                                             redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.warn("Base64 encoding failed, using original URL: key={}, error={}", redisKey, encodingException.getMessage());
+                                            log.info("Product URL saved to Redis (raw): key={}, length(original)={}", 
+                                                redisKey, productUrl.trim().length());
+                                        } catch (Exception encodingException) {
+                                            // 실패 시 원본 URL 직접 저장 시도
+                                            redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                                            log.warn("Saving raw URL with fallback: key={}, error={}", redisKey, encodingException.getMessage());
                                         }
                                     }
                                 } catch (Exception e) {
