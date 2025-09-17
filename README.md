@@ -83,9 +83,12 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 ### 📸 이미지 처리 & 가상 피팅
 - **이미지 업로드**: AWS S3를 통한 안전한 이미지 저장
 - **이미지 기반 분석**: 업로드된 이미지를 통한 스타일 분석
-- **가상 피팅 시뮬레이션**: AI 기반 가상 피팅 기술로 실제 착용 모습 시뮬레이션
-- **피팅 결과 제공**: 가상 피팅 완료 후 결과 이미지 및 상태 정보 제공
-- **실시간 피팅 처리**: 비동기 작업을 통한 효율적인 가상 피팅 처리
+- **가상 피팅 시뮬레이션**: FitRoom API 기반 AI 가상 피팅으로 실제 착용 모습 시뮬레이션
+- **콤보 가상피팅**: 상의와 하의를 동시에 입히는 고급 가상피팅 기능
+- **Redis 기반 상품 연동**: 상품 ID로 Redis에서 이미지 URL 자동 조회
+- **이미지 프록시**: CORS 문제 해결을 위한 이미지 프록시 서비스
+- **실시간 피팅 처리**: 동기/비동기 작업을 통한 효율적인 가상 피팅 처리
+- **HD 모드 지원**: 고화질 가상피팅 옵션 제공
 
 ### 🔐 사용자 관리 & 인증
 - **카카오 OAuth 로그인**: HttpOnly 쿠키 기반 보안 인증
@@ -141,9 +144,11 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 
 ### 이미지 처리 & 가상 피팅
 - `POST /api/chat/upload` - 이미지 파일 업로드 (S3)
-- `POST /api/fitting/start` - 가상 피팅 시작 (비동기 처리)
-- `GET /api/fitting/status/{taskId}` - 가상 피팅 상태 조회
-- `GET /api/fitting/result/{taskId}` - 가상 피팅 결과 조회
+- `POST /api/fitting/try-on` - **가상 피팅 실행** (모델 이미지 + 상품 ID 기반)
+- `POST /api/fitting/try-on/combo` - **콤보 가상 피팅 실행** (상의+하의 동시)
+- `GET /api/fitting/proxy-image` - **이미지 프록시** (CORS 문제 해결)
+- `GET /api/fitting/proxy-test` - 프록시 API 테스트
+- `GET /api/fitting/status/{taskId}` - 가상 피팅 상태 조회 (향후 비동기 처리용)
 
 ### 인증 관련
 - `GET /api/auth/kakao/callback` - 카카오 로그인 콜백 처리
@@ -254,12 +259,120 @@ window.onload = async function() {
 };
 ```
 
+### 가상 피팅 API 사용 방법
+
+#### 1. 기본 가상 피팅 실행
+```javascript
+async function tryOnFitting(modelImageFile, upperProductId, lowerProductId) {
+    try {
+        const formData = new FormData();
+        formData.append('model_image', modelImageFile);
+        if (upperProductId) formData.append('upper_product_id', upperProductId);
+        if (lowerProductId) formData.append('lower_product_id', lowerProductId);
+        formData.append('hd_mode', 'false');
+
+        const response = await fetch('/api/fitting/try-on', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            const result = data.data;
+            console.log('가상피팅 완료:', result.downloadUrl);
+            return result;
+        } else {
+            throw new Error(data.message || '가상피팅 실패');
+        }
+    } catch (error) {
+        console.error('가상피팅 오류:', error);
+        throw error;
+    }
+}
+```
+
+#### 2. 콤보 가상 피팅 실행 (상의+하의)
+```javascript
+async function tryOnComboFitting(modelImageFile, upperProductId, lowerProductId) {
+    try {
+        const formData = new FormData();
+        formData.append('model_image', modelImageFile);
+        formData.append('upper_product_id', upperProductId);
+        formData.append('lower_product_id', lowerProductId);
+
+        const response = await fetch('/api/fitting/try-on/combo', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            const result = data.data;
+            console.log('콤보 가상피팅 완료:', result.downloadUrl);
+            return result;
+        } else {
+            throw new Error(data.message || '콤보 가상피팅 실패');
+        }
+    } catch (error) {
+        console.error('콤보 가상피팅 오류:', error);
+        throw error;
+    }
+}
+```
+
+#### 3. 이미지 프록시 사용 (CORS 문제 해결)
+```javascript
+function getProxiedImageUrl(originalUrl) {
+    const encodedUrl = encodeURIComponent(originalUrl);
+    return `/api/fitting/proxy-image?imageUrl=${encodedUrl}`;
+}
+
+// 사용 예시
+const productImageUrl = "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg";
+const proxiedUrl = getProxiedImageUrl(productImageUrl);
+
+// HTML에서 사용
+document.getElementById('product-image').src = proxiedUrl;
+```
+
+#### 4. 프록시 API 테스트
+```javascript
+async function testProxyApi() {
+    try {
+        const response = await fetch('/api/fitting/proxy-test', {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            console.log('프록시 API 정상 작동');
+            return true;
+        } else {
+            console.error('프록시 API 오류:', data.message);
+            return false;
+        }
+    } catch (error) {
+        console.error('프록시 API 테스트 실패:', error);
+        return false;
+    }
+}
+```
+
 ### ⚠️ 중요 사항
 
 1. **credentials: 'include' 필수**: 모든 API 호출 시 쿠키를 포함해야 합니다.
 2. **HTTPS 환경**: 프로덕션에서는 반드시 HTTPS를 사용해야 합니다.
 3. **에러 처리**: 네트워크 오류와 인증 오류를 구분하여 처리하세요.
 4. **토큰 만료**: JWT 토큰은 7일 후 자동 만료됩니다.
+5. **가상피팅 파일 크기**: 모델 이미지는 적절한 크기로 압축하여 업로드하세요.
+6. **상품 ID 유효성**: Redis에 캐시된 유효한 상품 ID만 사용하세요.
+7. **이미지 프록시**: 외부 이미지 URL은 프록시를 통해 CORS 문제를 해결하세요.
 
 ### 응답 형식 예시
 
@@ -424,50 +537,49 @@ data: {
 }
 ```
 
-#### 가상 피팅 시작 (fitting/start API)
+#### 가상 피팅 실행 (fitting/try-on API)
 ```json
 {
   "status": "success",
-  "message": "가상 피팅이 시작되었습니다.",
+  "message": "요청 성공",
   "data": {
-    "task_id": "fitting-task-12345",
-    "status": "PROCESSING",
-    "estimated_time": "30-60초"
+    "success": true,
+    "message": "콤보 가상피팅이 완료되었습니다.",
+    "downloadUrl": "https://fitroom-results.s3.amazonaws.com/results/task_12345.jpg",
+    "taskId": "task_12345"
   }
 }
 ```
 
-#### 가상 피팅 상태 조회 (fitting/status API)
+#### 콤보 가상 피팅 실행 (fitting/try-on/combo API)
 ```json
 {
   "status": "success",
-  "message": "가상 피팅 상태를 조회했습니다.",
+  "message": "요청 성공",
   "data": {
-    "task_id": "fitting-task-12345",
-    "status": "COMPLETED",
-    "progress": 100,
-    "created_at": "2024-01-15T10:00:00Z",
-    "completed_at": "2024-01-15T10:01:30Z"
+    "success": true,
+    "message": "콤보 가상피팅이 완료되었습니다.",
+    "downloadUrl": "https://fitroom-results.s3.amazonaws.com/results/combo_task_67890.jpg",
+    "taskId": "combo_task_67890"
   }
 }
 ```
 
-#### 가상 피팅 결과 조회 (fitting/result API)
+#### 이미지 프록시 (fitting/proxy-image API)
+**응답**: 이미지 바이너리 데이터 (Content-Type: image/jpeg)
+**헤더**: CORS 헤더 포함
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Headers: *
+Cache-Control: public, max-age=3600
+```
+
+#### 프록시 API 테스트 (fitting/proxy-test API)
 ```json
 {
   "status": "success",
-  "message": "가상 피팅 결과를 성공적으로 조회했습니다.",
-  "data": {
-    "task_id": "fitting-task-12345",
-    "status": "COMPLETED",
-    "result_image_url": "https://fitroom-results.s3.amazonaws.com/results/fitting-task-12345.jpg",
-    "input_images": {
-      "person_image": "https://user-uploads.s3.amazonaws.com/person-123.jpg",
-      "clothing_images": [
-        "https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4227290/segment/0_17.jpg"
-      ]
-    }
-  }
+  "message": "프록시 API가 정상 작동합니다."
 }
 ```
 
@@ -505,14 +617,18 @@ Redis 캐시 조회 → 상품 정보 반환
 
 ### 6. 가상 피팅 처리 흐름
 ```
-POST /fitting/start → SimpleFittingController → FitRoomApiClient → 
-FitRoom API 호출 → Task ID 반환 → 비동기 처리 시작
+POST /fitting/try-on → SimpleFittingController → 
+Redis에서 상품 ID로 이미지 URL 조회 → FitRoomApiClient → 
+FitRoom API 호출 (모델 이미지 + 상품 이미지) → 
+작업 완료까지 폴링 대기 → 결과 이미지 다운로드 URL 반환
 
-GET /fitting/status/{taskId} → SimpleFittingController → FitRoomApiClient → 
-FitRoom API 상태 조회 → 처리 상태 반환
+POST /fitting/try-on/combo → SimpleFittingController → 
+Redis에서 상의/하의 상품 ID로 이미지 URL 조회 → FitRoomApiClient → 
+FitRoom API 콤보 호출 (모델 + 상의 + 하의) → 
+작업 완료까지 폴링 대기 → 결과 이미지 다운로드 URL 반환
 
-GET /fitting/result/{taskId} → SimpleFittingController → FitRoomApiClient → 
-FitRoom API 결과 조회 → 피팅 결과 이미지 URL 반환
+GET /fitting/proxy-image → SimpleFittingController → 
+외부 이미지 URL 다운로드 → CORS 헤더 설정 → 이미지 바이너리 반환
 ```
 
 ### 7. 스트림 API 처리 흐름
@@ -628,15 +744,29 @@ SSE 이벤트 전송 (connect, content, complete, error)
   - `chat-sse-test.html` - 채팅 SSE 기능을 테스트할 수 있는 웹 인터페이스 제공
   - 실시간 메시지 수신 및 상품 이미지 표시 기능
 
-### v1.4.0 (2024-01-20) - 가상 피팅 기능 추가
-- **가상 피팅 시스템 구축**:
-  - FitRoom API 연동을 통한 AI 기반 가상 피팅 서비스
-  - 비동기 처리를 통한 효율적인 피팅 작업 관리
-  - 실시간 상태 조회 및 결과 확인 기능
+### v1.4.0 (2024-01-20) - 가상 피팅 시스템 구축
+- **FitRoom API 기반 가상 피팅 시스템**:
+  - AI 기반 가상 피팅으로 실제 착용 모습 시뮬레이션
+  - 모델 이미지와 상품 이미지를 조합한 고품질 가상피팅
+  - 상의와 하의를 동시에 입히는 콤보 가상피팅 기능
+- **Redis 기반 상품 연동**:
+  - 상품 ID로 Redis에서 이미지 URL 자동 조회
+  - Base64 인코딩/디코딩을 통한 안전한 URL 처리
+  - 상품 정보 캐싱과 연동된 효율적인 피팅 시스템
+- **이미지 프록시 서비스**:
+  - CORS 문제 해결을 위한 이미지 프록시 API
+  - 외부 이미지 URL 다운로드 및 CORS 헤더 설정
+  - 캐시 제어 및 타임아웃 처리
 - **새로운 API 엔드포인트**:
-  - `POST /api/fitting/start` - 가상 피팅 시작
-  - `GET /api/fitting/status/{taskId}` - 피팅 상태 조회  
-  - `GET /api/fitting/result/{taskId}` - 피팅 결과 조회
+  - `POST /api/fitting/try-on` - 가상 피팅 실행 (모델 + 상품 ID)
+  - `POST /api/fitting/try-on/combo` - 콤보 가상 피팅 실행 (상의+하의)
+  - `GET /api/fitting/proxy-image` - 이미지 프록시 (CORS 해결)
+  - `GET /api/fitting/proxy-test` - 프록시 API 테스트
+  - `GET /api/fitting/status/{taskId}` - 피팅 상태 조회 (향후 비동기용)
+- **고급 기능**:
+  - HD 모드 지원으로 고화질 가상피팅 옵션
+  - 동기 처리로 즉시 결과 반환 (폴링 방식)
+  - 상세한 에러 처리 및 진단 정보 제공
 - **환경 설정 강화**:
   - `FITROOM_API_KEY` 환경변수 추가로 보안 강화
   - CI/CD 파이프라인에 가상 피팅 관련 환경변수 통합

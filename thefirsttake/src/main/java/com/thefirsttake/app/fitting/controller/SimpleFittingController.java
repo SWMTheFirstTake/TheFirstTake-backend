@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -41,20 +42,50 @@ public class SimpleFittingController {
     @PostMapping("/try-on")
     @Operation(
         summary = "가상피팅 실행",
-        description = "모델 이미지와 상의/하의 product_id를 받아서 Redis에서 URL을 조회하고 가상피팅을 실행합니다.\n\n" +
+        description = "모델 이미지와 상의/하의 상품 ID를 받아서 Redis에서 이미지 URL을 조회하고 FitRoom API를 통해 가상피팅을 실행합니다.\n\n" +
+                     "**처리 과정**:\n" +
+                     "1. Redis에서 상품 ID로 이미지 URL 조회\n" +
+                     "2. FitRoom API로 가상피팅 작업 생성\n" +
+                     "3. 작업 완료까지 폴링 대기\n" +
+                     "4. 결과 이미지 다운로드 URL 반환\n\n" +
                      "**Content-Type**: multipart/form-data\n\n" +
-                     "**주의**: model_image는 파일이고, upper_product_id와 lower_product_id는 Redis에서 URL을 조회하는 키입니다.\n\n" +
-                     "**Postman 테스트 시**: form-data로 설정하고 model_image는 File 타입으로, product_id들은 Text 타입으로 선택하세요."
+                     "**파라미터**:\n" +
+                     "- model_image: 모델 사진 파일 (필수)\n" +
+                     "- upper_product_id: 상의 상품 ID (선택)\n" +
+                     "- lower_product_id: 하의 상품 ID (선택)\n" +
+                     "- hd_mode: HD 모드 여부 (기본값: false)\n\n" +
+                     "**주의사항**: 상의 또는 하의 중 최소 하나는 필수입니다."
     )
     @ApiResponses(value = {
         @ApiResponse(
             responseCode = "200",
             description = "가상피팅 성공",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "성공 응답",
+                    value = "{\n" +
+                           "  \"status\": \"success\",\n" +
+                           "  \"message\": \"요청 성공\",\n" +
+                           "  \"data\": {\n" +
+                           "    \"success\": true,\n" +
+                           "    \"message\": \"콤보 가상피팅이 완료되었습니다.\",\n" +
+                           "    \"downloadUrl\": \"https://fitroom-results.s3.amazonaws.com/results/task_12345.jpg\",\n" +
+                           "    \"taskId\": \"task_12345\"\n" +
+                           "  }\n" +
+                           "}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "잘못된 요청 (상품 ID 누락 또는 Redis에서 URL 조회 실패)",
             content = @Content(schema = @Schema(implementation = CommonResponse.class))
         ),
         @ApiResponse(
             responseCode = "500",
-            description = "서버 오류",
+            description = "서버 오류 (FitRoom API 호출 실패 또는 처리 중 오류)",
             content = @Content(schema = @Schema(implementation = CommonResponse.class))
         )
     })
@@ -174,19 +205,49 @@ public class SimpleFittingController {
     @PostMapping("/try-on/combo")
     @Operation(
         summary = "콤보 가상피팅 실행",
-        description = "모델 이미지 파일(model_image)과 상의/하의 상품 ID(upper_product_id, lower_product_id)만 받아, Redis에 저장된 이미지 URL로 콤보 가상피팅을 실행합니다.\n\n" +
-                     "필수 파라미터: model_image(파일), upper_product_id(Text), lower_product_id(Text)\n\n" +
-                     "**Content-Type**: multipart/form-data"
+        description = "모델 이미지와 상의/하의 상품 ID를 받아서 상의와 하의를 동시에 입히는 고급 가상피팅을 실행합니다.\n\n" +
+                     "**처리 과정**:\n" +
+                     "1. Redis에서 상의/하의 상품 ID로 이미지 URL 조회\n" +
+                     "2. FitRoom API로 콤보 가상피팅 작업 생성\n" +
+                     "3. 작업 완료까지 폴링 대기\n" +
+                     "4. 결과 이미지 다운로드 URL 반환\n\n" +
+                     "**Content-Type**: multipart/form-data\n\n" +
+                     "**필수 파라미터**:\n" +
+                     "- model_image: 모델 사진 파일\n" +
+                     "- upper_product_id: 상의 상품 ID\n" +
+                     "- lower_product_id: 하의 상품 ID\n\n" +
+                     "**특징**: 상의와 하의를 동시에 입혀서 더욱 현실적인 가상피팅 결과를 제공합니다."
     )
     @ApiResponses(value = {
         @ApiResponse(
             responseCode = "200",
             description = "콤보 가상피팅 성공",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "성공 응답",
+                    value = "{\n" +
+                           "  \"status\": \"success\",\n" +
+                           "  \"message\": \"요청 성공\",\n" +
+                           "  \"data\": {\n" +
+                           "    \"success\": true,\n" +
+                           "    \"message\": \"콤보 가상피팅이 완료되었습니다.\",\n" +
+                           "    \"downloadUrl\": \"https://fitroom-results.s3.amazonaws.com/results/combo_task_67890.jpg\",\n" +
+                           "    \"taskId\": \"combo_task_67890\"\n" +
+                           "  }\n" +
+                           "}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "잘못된 요청 (필수 파라미터 누락 또는 Redis에서 URL 조회 실패)",
             content = @Content(schema = @Schema(implementation = CommonResponse.class))
         ),
         @ApiResponse(
             responseCode = "500",
-            description = "서버 오류",
+            description = "서버 오류 (FitRoom API 호출 실패 또는 처리 중 오류)",
             content = @Content(schema = @Schema(implementation = CommonResponse.class))
         )
     })
@@ -301,23 +362,57 @@ public class SimpleFittingController {
     @GetMapping("/proxy-image")
     @Operation(
         summary = "이미지 프록시",
-        description = "CORS 문제 해결을 위한 이미지 프록시 API. 외부 이미지 URL을 받아서 CORS 헤더와 함께 반환합니다."
+        description = "CORS 문제 해결을 위한 이미지 프록시 API입니다. 외부 이미지 URL을 받아서 CORS 헤더와 함께 이미지 바이너리를 반환합니다.\n\n" +
+                     "**사용 목적**:\n" +
+                     "- 외부 이미지 URL의 CORS 정책으로 인한 브라우저 차단 해결\n" +
+                     "- 상품 이미지나 가상피팅 결과 이미지의 안전한 로딩\n" +
+                     "- 캐시 제어를 통한 성능 최적화\n\n" +
+                     "**처리 과정**:\n" +
+                     "1. URL 디코딩 및 유효성 검사\n" +
+                     "2. 외부 이미지 다운로드\n" +
+                     "3. CORS 헤더 설정\n" +
+                     "4. 이미지 바이너리 반환\n\n" +
+                     "**응답 헤더**:\n" +
+                     "- Access-Control-Allow-Origin: *\n" +
+                     "- Cache-Control: public, max-age=3600\n" +
+                     "- Content-Type: image/jpeg (또는 원본 타입)"
     )
     @ApiResponses(value = {
         @ApiResponse(
             responseCode = "200",
-            description = "이미지 프록시 성공",
-            content = @Content(mediaType = "image/jpeg")
+            description = "이미지 프록시 성공 - 이미지 바이너리 데이터 반환",
+            content = @Content(
+                mediaType = "image/jpeg",
+                schema = @Schema(type = "string", format = "binary"),
+                examples = @ExampleObject(
+                    name = "이미지 바이너리",
+                    value = "이미지 바이너리 데이터 (Content-Type: image/jpeg)"
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "잘못된 요청 (imageUrl 파라미터 누락)",
-            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            description = "잘못된 요청 (imageUrl 파라미터 누락 또는 잘못된 URL 형식)",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "에러 응답",
+                    value = "{\n" +
+                           "  \"status\": \"fail\",\n" +
+                           "  \"message\": \"이미지 URL이 필요합니다.\",\n" +
+                           "  \"data\": null\n" +
+                           "}"
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "500",
-            description = "서버 오류 (이미지 다운로드 실패)",
-            content = @Content(schema = @Schema(implementation = CommonResponse.class))
+            description = "서버 오류 (이미지 다운로드 실패, 네트워크 오류 등)",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class)
+            )
         )
     })
     public ResponseEntity<?> proxyImage(
@@ -424,8 +519,42 @@ public class SimpleFittingController {
     @GetMapping("/proxy-test")
     @Operation(
         summary = "프록시 API 테스트",
-        description = "프록시 API가 정상 작동하는지 테스트하는 엔드포인트"
+        description = "이미지 프록시 API가 정상 작동하는지 테스트하는 엔드포인트입니다.\n\n" +
+                     "**테스트 과정**:\n" +
+                     "1. 테스트용 이미지 URL로 외부 이미지 다운로드 시도\n" +
+                     "2. 다운로드 성공 여부 확인\n" +
+                     "3. API 정상 작동 상태 반환\n\n" +
+                     "**사용 목적**:\n" +
+                     "- 프록시 API 서비스 상태 확인\n" +
+                     "- 외부 이미지 다운로드 기능 검증\n" +
+                     "- 네트워크 연결 상태 테스트"
     )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "프록시 API 정상 작동",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "성공 응답",
+                    value = "{\n" +
+                           "  \"status\": \"success\",\n" +
+                           "  \"message\": \"프록시 API가 정상 작동합니다.\",\n" +
+                           "  \"data\": null\n" +
+                           "}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "프록시 API 오류 (외부 이미지 다운로드 실패)",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class)
+            )
+        )
+    })
     public ResponseEntity<CommonResponse> proxyTest() {
         try {
             // 간단한 테스트 이미지 URL (예: 1x1 픽셀 이미지)
@@ -456,8 +585,29 @@ public class SimpleFittingController {
     @GetMapping("/status/{taskId}")
     @Operation(
         summary = "가상피팅 상태 확인",
-        description = "가상피팅 작업의 현재 상태를 확인합니다. (향후 비동기 처리 시 사용 예정)"
+        description = "가상피팅 작업의 현재 상태를 확인합니다.\n\n" +
+                     "**현재 상태**: 향후 비동기 처리 시 사용 예정\n" +
+                     "**예정 기능**:\n" +
+                     "- 작업 진행률 조회\n" +
+                     "- 완료/실패 상태 확인\n" +
+                     "- 예상 완료 시간 제공\n" +
+                     "- 에러 메시지 조회\n\n" +
+                     "**현재 응답**: 개발 중 메시지 반환"
     )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "상태 확인 응답 (현재는 개발 중 메시지)",
+            content = @Content(
+                mediaType = "text/plain",
+                schema = @Schema(type = "string"),
+                examples = @ExampleObject(
+                    name = "개발 중 응답",
+                    value = "Status check endpoint - to be implemented for async processing"
+                )
+            )
+        )
+    })
     public ResponseEntity<String> getStatus(
             @Parameter(description = "작업 ID", required = true, example = "task_12345")
             @PathVariable String taskId) {
