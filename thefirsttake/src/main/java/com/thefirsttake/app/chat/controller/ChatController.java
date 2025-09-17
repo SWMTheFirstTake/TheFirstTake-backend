@@ -34,7 +34,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Value;
 import java.util.HashMap;
-import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -1732,5 +1731,128 @@ private String getAgentName(String agentId) {
             return agentId != null ? agentId : "알 수 없음";
     }
 }
+
+    @Operation(
+        summary = "새 채팅방 생성",
+        description = """
+            새로운 채팅방을 생성합니다.
+            
+            **인증 방식:**
+            - 세션 기반 사용자 식별 (다른 채팅 API들과 동일)
+            - 세션이 없으면 자동으로 새 세션 생성
+            - 게스트 사용자로 채팅방 생성
+            
+            **프론트엔드에서 사용하는 방법:**
+            ```javascript
+            async function createChatRoom(title = "새로운 채팅방") {
+                const response = await fetch('/api/chat/rooms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // 세션 쿠키 포함 필수
+                    body: JSON.stringify({ title: title })
+                });
+                
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    const roomData = result.data;
+                    console.log('새 채팅방 생성됨:', roomData);
+                    return roomData;
+                } else {
+                    console.error('채팅방 생성 실패:', result.message);
+                    return null;
+                }
+            }
+            ```
+            """,
+        tags = {"채팅 관리"}
+    )
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "채팅방 생성 성공",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "성공 응답",
+                    description = "새로 생성된 채팅방 정보를 반환합니다.",
+                    value = """
+                    {
+                        "status": "success",
+                        "message": "채팅방이 성공적으로 생성되었습니다",
+                        "data": {
+                            "id": 3,
+                            "title": "새로운 채팅방",
+                            "createdAt": "2024-01-15T14:30:00"
+                        }
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "서버 내부 오류",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = CommonResponse.class),
+                examples = @ExampleObject(
+                    name = "서버 오류 응답",
+                    description = "채팅방 생성 중 서버 오류가 발생했습니다.",
+                    value = """
+                    {
+                        "status": "fail",
+                        "message": "채팅방 생성 중 오류가 발생했습니다",
+                        "data": null
+                    }
+                    """
+                )
+            )
+        )
+    })
+    @PostMapping("/rooms")
+    public ResponseEntity<CommonResponse> createChatRoom(
+        HttpServletRequest httpRequest
+    ) {
+        try {
+            // 세션 확인 (다른 API들과 동일한 패턴)
+            HttpSession session = httpRequest.getSession(false);
+            if (session == null) {
+                System.out.println("createChatRoom: 세션 새로 생성");
+                session = httpRequest.getSession(true);
+            }
+            
+            String sessionId = session.getId();
+            log.info("채팅방 생성 요청: sessionId={}", sessionId);
+            
+            // 사용자 엔티티 조회 또는 생성 (게스트 사용자)
+            UserEntity userEntity = userSessionService.getOrCreateGuestUser(sessionId);
+            
+            // 새 채팅방 생성
+            ChatRoom newRoom = new ChatRoom();
+            newRoom.setUser(userEntity);
+            newRoom.setTitle("새로운 채팅방");
+            newRoom.setCreatedAt(LocalDateTime.now());
+            
+            ChatRoom savedRoom = chatRoomManagementService.getChatRoomRepository().save(newRoom);
+            
+            // DTO로 변환하여 응답
+            ChatRoomDto roomDto = new ChatRoomDto(savedRoom);
+            
+            log.info("새 채팅방 생성 완료: roomId={}, sessionId={}, title={}", 
+                savedRoom.getId(), sessionId, savedRoom.getTitle());
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(CommonResponse.success(roomDto));
+                
+        } catch (Exception e) {
+            log.error("채팅방 생성 실패: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CommonResponse.fail("채팅방 생성 중 오류가 발생했습니다"));
+        }
+    }
+    
 }
 

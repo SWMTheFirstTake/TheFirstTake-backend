@@ -105,4 +105,11 @@ public class ChatRoomManagementService {
                 .map(ChatRoomDto::new)
                 .collect(Collectors.toList());
     }
+    
+    /**
+     * ChatRoomRepository 접근을 위한 getter
+     */
+    public ChatRoomRepository getChatRoomRepository() {
+        return chatRoomRepository;
+    }
 } 
