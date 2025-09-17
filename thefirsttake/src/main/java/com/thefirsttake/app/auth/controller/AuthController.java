@@ -124,18 +124,11 @@ public class AuthController {
             accessTokenCookie.setPath("/");
             accessTokenCookie.setMaxAge(15 * 60); // 15분
             
-            // 리프레시 토큰 쿠키 (7일)
-            Cookie refreshTokenCookie = new Cookie("refresh_token", jwtRefreshToken);
-            refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setSecure(true);
-            refreshTokenCookie.setPath("/");
-            refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
-            
             response.addCookie(accessTokenCookie);
-            response.addCookie(refreshTokenCookie);
+            // 요구사항: 일단 refresh 토큰은 쿠키에 저장하지 않음
             
-            log.info("JWT 토큰 설정 완료. 액세스 토큰 길이: {}, 리프레시 토큰 길이: {}", 
-                jwtAccessToken.length(), jwtRefreshToken.length());
+            log.info("JWT 토큰 설정 완료. 액세스 토큰 길이: {}, 리프레시 토큰 생성됨(쿠키 미저장)", 
+                jwtAccessToken.length());
             
             // 5. 성공 메트릭 증가
             kakaoLoginSuccessCounter.increment();
@@ -410,8 +403,8 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<CommonResponse> refreshToken(HttpServletRequest request, HttpServletResponse response) {
         try {
-            // 리프레시 토큰 추출
-            String refreshToken = extractTokenFromCookies(request.getCookies(), "refresh_token");
+            // 리프레시 토큰 추출 (현재 쿠키 미사용 정책)
+            String refreshToken = null; // 쿠키에서 추출하지 않음
             
             if (refreshToken == null || !jwtService.validateToken(refreshToken) || !jwtService.isRefreshToken(refreshToken)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -425,21 +418,15 @@ public class AuthController {
             String newAccessToken = jwtService.generateAccessToken(userId, "갱신된사용자");
             String newRefreshToken = jwtService.generateRefreshToken(userId);
             
-            // 새로운 쿠키 설정
+            // 새로운 쿠키 설정 (refresh 토큰은 쿠키에 저장하지 않음)
             Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
             accessTokenCookie.setHttpOnly(true);
             accessTokenCookie.setSecure(true);
             accessTokenCookie.setPath("/");
             accessTokenCookie.setMaxAge(15 * 60); // 15분
             
-            Cookie refreshTokenCookie = new Cookie("refresh_token", newRefreshToken);
-            refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setSecure(true);
-            refreshTokenCookie.setPath("/");
-            refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
-            
             response.addCookie(accessTokenCookie);
-            response.addCookie(refreshTokenCookie);
+            // refresh 토큰은 서버 저장(추후 Redis) 예정, 쿠키 미저장
             
             log.info("토큰 갱신 성공. 사용자 ID: {}", userId);
             return ResponseEntity.ok(CommonResponse.success("토큰 갱신 성공"));
