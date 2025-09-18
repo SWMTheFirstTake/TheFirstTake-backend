@@ -1139,6 +1139,7 @@ public class ChatController {
                     - 명시적 종료: 모든 전문가 완료 후 SSE 연결 자동 종료
                     
                     **이벤트 타입:**
+                    - `room`: 새 방 생성 시 방 정보 전송
                     - `connect`: SSE 연결 성공
                     - `content`: AI 응답 실시간 스트리밍 (각 전문가별)
                     - `complete`: 개별 전문가 완료 (각 전문가별)
@@ -1222,6 +1223,15 @@ public class ChatController {
                                                     value = """
                                                     event: complete
                                                     data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
+                                                    
+                                                    """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "모든 전문가 완료",
+                                                    summary = "final_complete 이벤트 예시",
+                                                    value = """
+                                                    event: final_complete
+                                                    data: {"status":"success","message":"요청 성공","data":{"message":"모든 전문가 응답이 완료되었습니다.","total_experts":3,"timestamp":1757045039999}}
                                                     
                                                     """
                                             ),
