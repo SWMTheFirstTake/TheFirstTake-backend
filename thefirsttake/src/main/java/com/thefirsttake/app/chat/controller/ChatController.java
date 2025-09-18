@@ -54,6 +54,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CompletableFuture;
+import com.thefirsttake.app.chat.sse.SseInitializer;
+import com.thefirsttake.app.chat.sse.SseTrackingHooks;
 
 
 @RestController
@@ -78,6 +80,7 @@ public class ChatController {
     private final ProductCacheService productCacheService;
     private final RestTemplate restTemplate;
     private final RedisTemplate<String, String> redisTemplate;
+    private final SseInitializer sseInitializer;
     
     // 메트릭 관련 의존성
     private final Counter sseConnectionCounter;
@@ -133,6 +136,7 @@ public class ChatController {
                          S3Service s3Service,
                          ProductSearchService productSearchService,
                          ProductCacheService productCacheService,
+                         SseInitializer sseInitializer,
                          RestTemplate restTemplate,
                          RedisTemplate<String, String> redisTemplate,
                          Counter sseConnectionCounter,
@@ -173,6 +177,7 @@ public class ChatController {
         this.s3Service = s3Service;
         this.productSearchService = productSearchService;
         this.productCacheService = productCacheService;
+        this.sseInitializer = sseInitializer;
         this.restTemplate = restTemplate;
         this.redisTemplate = redisTemplate;
         this.sseConnectionCounter = sseConnectionCounter;
@@ -1284,117 +1289,62 @@ public class ChatController {
     }
     final HttpSession finalSession = session;
 
-    // 2. 방 ID 결정 (roomId가 없으면 새 방 생성)
+    // 2. 방 ID 결정 (한 줄 호출로 추상화) + 실패 시 SSE 에러 이벤트 전송
     final Long finalRoomId;
-    if (roomId == null) {
+    try {
+        finalRoomId = chatRoomManagementService.getOrCreateRoomId(roomId, finalSession.getId());
+    } catch (Exception e) {
+        log.error("채팅방 생성 실패: sessionId={}, error={}", finalSession.getId(), e.getMessage(), e);
+        SseEmitter errorEmitter = new SseEmitter(1000L);
         try {
-            finalRoomId = chatRoomManagementService.createChatRoom(finalSession.getId());
-            log.info("새 채팅방 생성됨: roomId={}, sessionId={}", finalRoomId, finalSession.getId());
-        } catch (Exception e) {
-            log.error("채팅방 생성 실패: sessionId={}, error={}", finalSession.getId(), e.getMessage(), e);
-            // 에러 응답 반환
-            SseEmitter errorEmitter = new SseEmitter(1000L);
-            try {
-                Map<String, Object> errorData = new HashMap<>();
-                errorData.put("message", "채팅방 생성에 실패했습니다.");
-                errorData.put("error", e.getMessage());
-                CommonResponse errorResponse = CommonResponse.fail("채팅방 생성에 실패했습니다: " + e.getMessage());
-                String errorJson = OBJECT_MAPPER.writeValueAsString(errorResponse);
-                errorEmitter.send(SseEmitter.event().name("error").data(errorJson));
-                errorEmitter.complete();
-            } catch (Exception ex) {
-                log.error("에러 응답 전송 실패", ex);
-            }
-            return errorEmitter;
+            CommonResponse errorResponse = CommonResponse.fail("채팅방 생성에 실패했습니다: " + e.getMessage());
+            String errorJson = OBJECT_MAPPER.writeValueAsString(errorResponse);
+            errorEmitter.send(SseEmitter.event().name("error").data(errorJson));
+            errorEmitter.complete();
+        } catch (Exception ex) {
+            log.error("에러 응답 전송 실패", ex);
         }
-    } else {
-        finalRoomId = roomId;
+        return errorEmitter;
     }
 
-    final SseEmitter emitter = new SseEmitter(120000L);
-    final AtomicBoolean cancelled = new AtomicBoolean(false);
-    
-    // SSE 커넥션 추적 시작
-    String connectionId = "sse_" + System.currentTimeMillis() + "_" + Thread.currentThread().hashCode();
-    Timer.Sample connectionCreationTimer = startSSEConnectionTracking(connectionId);
-    Timer.Sample connectionLifetimeTimer = Timer.start();
-    
-    // SSE API 전체 응답 시간 측정 시작
-    sseApiTotalCounter.increment();
-    Timer.Sample totalResponseTimer = Timer.start();
-    
-    // SSE 연결 메트릭
-    sseConnectionCounter.increment();
-    Timer.Sample connectionTimer = Timer.start();
-    
-    // 타임아웃 기반 강제 종료를 위한 타이머
-    final AtomicBoolean forceCompleted = new AtomicBoolean(false);
-    CompletableFuture.delayedExecutor(120, TimeUnit.SECONDS).execute(() -> {
-        if (!forceCompleted.get()) {
-            log.warn("⏰ SSE 연결 강제 타임아웃: connectionId={}", connectionId);
-            cancelled.set(true);
-            
-            // 강제 종료 시 메트릭 업데이트 (중복 방지)
-            if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-                connectionTimer.stop(sseConnectionDurationTimer);
-                totalResponseTimer.stop(sseApiTotalResponseTimer);
-                sseApiFailureCounter.increment(); // 타임아웃은 실패로 간주
-                sseDisconnectionCounter.increment();
-                endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "force_timeout", connectionId);
-            }
-            
-            try {
-                emitter.complete();
-            } catch (Exception e) {
-                log.warn("강제 종료 중 오류: {}", e.getMessage());
-            }
+    SseInitializer.Result sse = sseInitializer.initialize(new SseTrackingHooks() {
+        @Override
+        public Timer.Sample onStart(String connectionId) {
+            return startSSEConnectionTracking(connectionId);
+        }
+        @Override
+        public void onEnd(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason, String connectionId) {
+            endSSEConnectionTracking(connectionCreationTimer, lifetimeTimer, reason, connectionId);
         }
     });
-
-    // SSE 수명주기 훅: 연결 종료/타임아웃/에러 시 취소 플래그 설정
-    emitter.onCompletion(() -> {
-        cancelled.set(true);
-        // 중복 처리 방지
-        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-            connectionTimer.stop(sseConnectionDurationTimer);
-            totalResponseTimer.stop(sseApiTotalResponseTimer);
-            sseApiSuccessCounter.increment();
-            sseDisconnectionCounter.increment();
-            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
-        }
-    });
-    emitter.onTimeout(() -> {
-        cancelled.set(true);
-        // 중복 처리 방지
-        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-            connectionTimer.stop(sseConnectionDurationTimer);
-            totalResponseTimer.stop(sseApiTotalResponseTimer);
-            sseApiFailureCounter.increment();
-            sseDisconnectionCounter.increment();
-            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
-        }
-    });
-    emitter.onError(e -> {
-        cancelled.set(true);
-        // 중복 처리 방지
-        if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-            connectionTimer.stop(sseConnectionDurationTimer);
-            totalResponseTimer.stop(sseApiTotalResponseTimer);
-            sseApiFailureCounter.increment();
-            sseDisconnectionCounter.increment();
-            endSSEConnectionTracking(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
-        }
-    });
+    final SseEmitter emitter = sse.emitter();
+    final AtomicBoolean cancelled = sse.cancelled();
+    final AtomicBoolean forceCompleted = sse.forceCompleted();
+    final String connectionId = sse.connectionId();
+    final Timer.Sample connectionCreationTimer = sse.connectionCreationTimer();
+    final Timer.Sample connectionLifetimeTimer = sse.connectionLifetimeTimer();
+    final Timer.Sample totalResponseTimer = sse.totalResponseTimer();
+    final Timer.Sample connectionTimer = sse.connectionTimer();
 
     // 통합된 스트림 처리 로직
 
     try {
-        // connect 이벤트를 CommonResponse 형식으로 변경
+        // room → connect 순서로 전송 (신규 방 생성 시 room 먼저)
+        if (roomId == null) {
+            Map<String, Object> roomData = new HashMap<>();
+            roomData.put("room_id", finalRoomId);
+            roomData.put("type", "room");
+            roomData.put("timestamp", System.currentTimeMillis());
+            CommonResponse roomResponse = CommonResponse.success(roomData);
+            String roomJson = OBJECT_MAPPER.writeValueAsString(roomResponse);
+            emitter.send(SseEmitter.event().name("room").data(roomJson));
+        }
+
         Map<String, Object> connectData = new HashMap<>();
         connectData.put("message", "SSE 연결 성공");
         connectData.put("type", "connect");
         connectData.put("timestamp", System.currentTimeMillis());
-        
+
         CommonResponse connectResponse = CommonResponse.success(connectData);
         String json = OBJECT_MAPPER.writeValueAsString(connectResponse);
         emitter.send(SseEmitter.event().name("connect").data(json));

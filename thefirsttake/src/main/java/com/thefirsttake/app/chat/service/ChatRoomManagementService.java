@@ -76,6 +76,18 @@ public class ChatRoomManagementService {
     }
 
     /**
+     * roomId가 null이면 세션으로 새 방을 생성하고, 아니면 그대로 반환.
+     * 컨트롤러에서 한 줄로 방 결정을 하기 위한 유틸.
+     */
+    @Transactional
+    public Long getOrCreateRoomId(Long requestedRoomId, String sessionId) {
+        if (requestedRoomId != null) {
+            return requestedRoomId;
+        }
+        return createChatRoom(sessionId);
+    }
+
+    /**
      * ID로 채팅방 조회
      */
     @Transactional(readOnly = true)
