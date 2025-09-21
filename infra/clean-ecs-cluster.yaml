@@ -1,0 +1,485 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Test ECS Cluster with dual services - Complete version'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: test-ecs-cluster
+    Description: Name of the test ECS cluster
+  
+  VpcId:
+    Type: String
+    Default: vpc-0c31aa1692145be5e
+    Description: Existing VPC ID
+  
+  SubnetIds:
+    Type: CommaDelimitedList
+    Default: "subnet-05bda01230da1b1b2,subnet-0af9f247125595c2b,subnet-068d9f9b8a76f8497,subnet-0d51f34ac2ba21ff0"
+    Description: Existing subnet IDs
+
+Resources:
+  # ECS Cluster
+  TestECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Environment
+          Value: test
+
+  # Security Groups
+  TestECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref TestALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 6020
+          ToPort: 6020
+          SourceSecurityGroupId: !Ref TestALBSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: test-ecs-security-group
+
+  TestALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: test-alb-security-group
+
+  # IAM Roles
+  TestECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ClusterName}-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/postgres-password-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/kakao-client-secret-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/fitroom-api-key-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/jwt-secret-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/claude-api-key-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/openai-api-key-*
+                  - arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/aws-secret-key-*
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - arn:aws:ssm:ap-northeast-2:023182678225:parameter/prod/*
+
+  TestECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ClusterName}-task-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - arn:aws:s3:::thefirsttake-combination/*
+                  - arn:aws:s3:::thefirsttake-file-upload/*
+
+  # CloudWatch Log Group
+  TestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ClusterName}'
+      RetentionInDays: 7
+
+  # ECR Repository
+  TestECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: test-thefirsttake-backend
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  # Load Balancer
+  TestApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${ClusterName}-alb'
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref TestALBSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: test
+
+  # Target Groups
+  TestBackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ClusterName}-backend-tg'
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /actuator/health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  TestLLMTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ClusterName}-llm-tg'
+      Port: 6020
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /llm/api/health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 300
+      HealthCheckTimeoutSeconds: 29
+      HealthyThresholdCount: 10
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: "200-499"
+
+  TestFrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ClusterName}-frontend-tg'
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Targets:
+        - Id: 172.31.23.37
+          Port: 80
+
+  # ALB Listener
+  TestALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TestBackendTargetGroup
+      LoadBalancerArn: !Ref TestApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # ALB Listener Rules
+  TestLLMListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TestLLMTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/llm/*"
+      ListenerArn: !Ref TestALBListener
+      Priority: 50
+
+  TestAPIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TestBackendTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/api/*"
+      ListenerArn: !Ref TestALBListener
+      Priority: 100
+
+  TestActuatorListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TestBackendTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/actuator/*"
+      ListenerArn: !Ref TestALBListener
+      Priority: 200
+
+  # Task Definitions
+  TestBackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ClusterName}-backend-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Ref TestECSTaskExecutionRole
+      TaskRoleArn: !Ref TestECSTaskRole
+      ContainerDefinitions:
+        - Name: backend
+          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-backend:latest
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+              Name: backend-8000-tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TestLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: test
+            - Name: POSTGRES_ENDPOINT
+              Value: database-1.cd6cwm4qy5ph.ap-northeast-2.rds.amazonaws.com
+            - Name: POSTGRES_USER
+              Value: !Sub '{{resolve:ssm:/prod/database/username:1}}'
+            - Name: POSTGRES_PASSWORD
+              Value: !Sub '{{resolve:secretsmanager:prod/postgres-password:SecretString}}'
+            - Name: SPRING_DATASOURCE_URL
+              Value: !Sub '{{resolve:ssm:/prod/database/url:1}}'
+            - Name: SPRING_DATASOURCE_USERNAME
+              Value: !Sub '{{resolve:ssm:/prod/database/username:1}}'
+            - Name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+              Value: org.postgresql.Driver
+            - Name: REDIS_ENDPOINT
+              Value: !Sub '{{resolve:ssm:/prod/redis/host:1}}'
+            - Name: LLM_SERVER_EXPERT_SINGLE_URL
+              Value: !Sub 'http://${TestApplicationLoadBalancer.DNSName}/llm/api/expert/single'
+            - Name: LLM_SERVER_EXPERT_CHAIN_URL
+              Value: !Sub 'http://${TestApplicationLoadBalancer.DNSName}/llm/api/expert/chain'
+            - Name: LLM_SERVER_EXPERT_STREAM_URL
+              Value: !Sub 'http://${TestApplicationLoadBalancer.DNSName}/llm/api/expert/single/stream'
+            - Name: LLM_SERVER_HOST
+              Value: !GetAtt TestApplicationLoadBalancer.DNSName
+            - Name: LLM_SERVER_PORT
+              Value: "6020"
+            - Name: AI_SERVER_HOST
+              Value: !Sub '{{resolve:ssm:/prod/ai/server-host:1}}'
+            - Name: AI_SERVER_PORT
+              Value: !Sub '{{resolve:ssm:/prod/ai/server-port:1}}'
+            - Name: AWS_ACCESS_KEY
+              Value: !Sub '{{resolve:ssm:/prod/aws/access-key:1}}'
+            - Name: KAKAO_CLIENT_ID
+              Value: !Sub '{{resolve:ssm:/prod/kakao/client-id:1}}'
+            - Name: KAKAO_REDIRECT_URI
+              Value: !Sub 'http://${TestApplicationLoadBalancer.DNSName}/api/auth/kakao/callback'
+          Secrets:
+            - Name: SPRING_DATASOURCE_PASSWORD
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/postgres-password-BTAWoa
+            - Name: KAKAO_CLIENT_SECRET
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/kakao-client-secret-vVR82L
+            - Name: FITROOM_API_KEY
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/fitroom-api-key-ok0KhA
+            - Name: JWT_SECRET
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/jwt-secret-9ffmIT
+            - Name: AWS_SECRET_KEY
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/aws-secret-key-XyNiAn
+          Essential: true
+
+  TestLLMTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ClusterName}-llm-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1024
+      Memory: 2048
+      ExecutionRoleArn: !Ref TestECSTaskExecutionRole
+      TaskRoleArn: !Ref TestECSTaskRole
+      ContainerDefinitions:
+        - Name: llm-server
+          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-llm:latest
+          PortMappings:
+            - ContainerPort: 6020
+              Protocol: tcp
+              Name: llm-6020-tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TestLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: llm
+          Environment:
+            - Name: ENVIRONMENT
+              Value: test
+            - Name: DEBUG
+              Value: "True"
+            - Name: REDIS_HOST
+              Value: !Sub '{{resolve:ssm:/prod/redis/host:1}}'
+            - Name: REDIS_PORT
+              Value: !Sub '{{resolve:ssm:/prod/redis/port:1}}'
+            - Name: AWS_REGION
+              Value: ap-northeast-2
+            - Name: AWS_ACCESS_KEY
+              Value: !Sub '{{resolve:ssm:/prod/aws/access-key:1}}'
+            - Name: S3_COMBINATION_BUCKET_NAME
+              Value: !Sub '{{resolve:ssm:/prod/s3/bucket-name:1}}'
+            - Name: S3_COMBINATION_BUCKET_IMAGE_PREFIX
+              Value: !Sub '{{resolve:ssm:/prod/s3/image-prefix:1}}'
+            - Name: S3_COMBINATION_BUCKET_JSON_PREFIX
+              Value: !Sub '{{resolve:ssm:/prod/s3/json-prefix:1}}'
+          Secrets:
+            - Name: CLAUDE_API_KEY
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/claude-api-key-aYxtRl
+            - Name: OPENAI_API_KEY
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/openai-api-key-RzILiN
+            - Name: AWS_SECRET_KEY
+              ValueFrom: arn:aws:secretsmanager:ap-northeast-2:023182678225:secret:prod/aws-secret-key-XyNiAn
+          Essential: true
+
+  # ECS Services
+  TestBackendECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ClusterName}-backend-service'
+      Cluster: !Ref TestECSCluster
+      TaskDefinition: !Ref TestBackendTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 8000
+          TargetGroupArn: !Ref TestBackendTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref TestECSSecurityGroup
+          Subnets: !Ref SubnetIds
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Environment
+          Value: test
+        - Key: Service
+          Value: backend
+    DependsOn:
+      - TestALBListener
+
+  TestLLMECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ClusterName}-llm-service'
+      Cluster: !Ref TestECSCluster
+      TaskDefinition: !Ref TestLLMTaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: 1
+      LoadBalancers:
+        - ContainerName: llm-server
+          ContainerPort: 6020
+          TargetGroupArn: !Ref TestLLMTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref TestECSSecurityGroup
+          Subnets: !Ref SubnetIds
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      Tags:
+        - Key: Environment
+          Value: test
+        - Key: Service
+          Value: llm
+    DependsOn:
+      - TestLLMListenerRule
+
+Outputs:
+  ClusterName:
+    Description: Test ECS Cluster Name
+    Value: !Ref TestECSCluster
+  
+  LoadBalancerURL:
+    Description: Test ALB URL
+    Value: !Sub 'http://${TestApplicationLoadBalancer.DNSName}'
+    Export:
+      Name: !Sub '${ClusterName}-alb-url'
+  
+  LoadBalancerDNS:
+    Description: Test ALB DNS Name
+    Value: !GetAtt TestApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${ClusterName}-alb-dns'
+  
+  BackendServiceName:
+    Description: Test Backend Service Name
+    Value: !Ref TestBackendECSService
+
+  LLMServiceName:
+    Description: Test LLM Service Name
+    Value: !Ref TestLLMECSService
