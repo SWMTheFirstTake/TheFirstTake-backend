@@ -54,6 +54,34 @@ public class SimpleFittingController {
                      "- upper_product_id: 상의 상품 ID (선택)\n" +
                      "- lower_product_id: 하의 상품 ID (선택)\n" +
                      "- hd_mode: HD 모드 여부 (기본값: false)\n\n" +
+                     "**파일 업로드 요구사항**:\n" +
+                     "• **Content-Type**: multipart/form-data\n" +
+                     "• **파라미터명**: model_image (필수)\n" +
+                     "• **파일 형식**: JPG, JPEG, PNG (권장: JPG)\n" +
+                     "• **최대 파일 크기**: 10MB\n" +
+                     "• **권장 파일 크기**: 2-5MB\n" +
+                     "• **이미지 해상도**: 512x512 ~ 1024x1024 픽셀\n" +
+                     "• **권장 해상도**: 768x768 픽셀\n\n" +
+                     "**프론트엔드 구현 가이드**:\n" +
+                     "```javascript\n" +
+                     "// FormData 사용 예시\n" +
+                     "const formData = new FormData();\n" +
+                     "formData.append('model_image', fileInput.files[0]);\n" +
+                     "formData.append('upper_product_id', '12345');\n" +
+                     "formData.append('hd_mode', 'false');\n" +
+                     "\n" +
+                     "fetch('/api/fitting/try-on', {\n" +
+                     "  method: 'POST',\n" +
+                     "  body: formData,\n" +
+                     "  headers: {\n" +
+                     "    'Authorization': 'Bearer ' + token\n" +
+                     "  }\n" +
+                     "});\n" +
+                     "```\n\n" +
+                     "**파일 검증 (프론트엔드)**:\n" +
+                     "• 파일 크기: 1MB 이상, 10MB 이하\n" +
+                     "• 파일 형식: image/jpeg, image/jpg, image/png\n" +
+                     "• 이미지 크기: 최소 512x512, 최대 1024x1024\n\n" +
                      "**주의사항**: 상의 또는 하의 중 최소 하나는 필수입니다."
     )
     @ApiResponses(value = {
@@ -90,7 +118,18 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOn(
-            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)\n\n" +
+                     "**파일 업로드 요구사항**:\n" +
+                     "• Content-Type: multipart/form-data\n" +
+                     "• 파라미터명: model_image\n" +
+                     "• 파일 형식: JPG, JPEG, PNG\n" +
+                     "• 최대 파일 크기: 10MB\n" +
+                     "• 이미지 해상도: 512x512 ~ 1024x1024 픽셀\n\n" +
+                     "**프론트엔드 예시**:\n" +
+                     "```javascript\n" +
+                     "const formData = new FormData();\n" +
+                     "formData.append('model_image', fileInput.files[0]);\n" +
+                     "```", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam("model_image") MultipartFile modelImage,
             @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = false, example = "12345")
             @RequestParam(value = "upper_product_id", required = false) String upperProductId,
@@ -216,7 +255,14 @@ public class SimpleFittingController {
                      "- model_image: 모델 사진 파일\n" +
                      "- upper_product_id: 상의 상품 ID\n" +
                      "- lower_product_id: 하의 상품 ID\n\n" +
-                     "**특징**: 상의와 하의를 동시에 입혀서 더욱 현실적인 가상피팅 결과를 제공합니다."
+                     "**파일 업로드 요구사항**:\n" +
+                     "• **Content-Type**: multipart/form-data\n" +
+                     "• **파라미터명**: model_image (필수)\n" +
+                     "• **파일 형식**: JPG, JPEG, PNG (권장: JPG)\n" +
+                     "• **최대 파일 크기**: 10MB\n" +
+                     "• **권장 파일 크기**: 2-5MB\n" +
+                     "• **이미지 해상도**: 512x512 ~ 1024x1024 픽셀\n" +
+                     "• **권장 해상도**: 768x768 픽셀\n\n"
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -252,7 +298,18 @@ public class SimpleFittingController {
         )
     })
     public ResponseEntity<CommonResponse> tryOnCombo(
-            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)", required = true, content = @Content(mediaType = "multipart/form-data"))
+            @Parameter(name = "model_image", description = "모델 사진 파일 (MultipartFile)\n\n" +
+                     "**파일 업로드 요구사항**:\n" +
+                     "• Content-Type: multipart/form-data\n" +
+                     "• 파라미터명: model_image\n" +
+                     "• 파일 형식: JPG, JPEG, PNG\n" +
+                     "• 최대 파일 크기: 10MB\n" +
+                     "• 이미지 해상도: 512x512 ~ 1024x1024 픽셀\n\n" +
+                     "**프론트엔드 예시**:\n" +
+                     "```javascript\n" +
+                     "const formData = new FormData();\n" +
+                     "formData.append('model_image', fileInput.files[0]);\n" +
+                     "```", required = true, content = @Content(mediaType = "multipart/form-data"))
             @RequestParam(value = "model_image", required = true) MultipartFile modelImage,
             @Parameter(name = "upper_product_id", description = "상의 상품 ID (Redis에서 URL 조회)", required = true, example = "12345")
             @RequestParam(value = "upper_product_id", required = true) String upperProductId,
