@@ -1081,22 +1081,32 @@ public class ChatController {
             session = httpRequest.getSession(true);
         }
 
-        // 2. 방 ID 결정 및 실패 시 SSE 에러 이벤트 전송
+        // 2. 방 ID 처리 (클라이언트가 항상 존재하는 roomId만 전달한다는 가정)
         String finalRoomId;
-        try {
-            Long roomIdLong = chatRoomManagementService.getOrCreateRoomId(roomId, session.getId());
-            finalRoomId = roomIdLong.toString();
-        } catch (Exception e) {
-            log.error("채팅방 생성 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
-            return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
+        boolean isNewRoom = false;
+        
+        if (roomId == null) {
+            // 신규 방 생성
+            try {
+                Long newRoomId = chatRoomManagementService.getOrCreateRoomId(null, session.getId());
+                finalRoomId = newRoomId.toString();
+                isNewRoom = true;
+                log.info("신규 채팅방 생성: roomId={}, sessionId={}", finalRoomId, session.getId());
+            } catch (Exception e) {
+                log.error("채팅방 생성 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+                return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
+            }
+        } else {
+            // 기존 방 사용
+            finalRoomId = roomId.toString();
+            log.info("기존 채팅방 사용: roomId={}, sessionId={}", finalRoomId, session.getId());
         }
 
         // 3. 스트림 처리 오케스트레이터 서비스로 위임
-        log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}", finalRoomId, userInput, session.getId());
+        log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}, isNewRoom={}", 
+                finalRoomId, userInput, session.getId(), isNewRoom);
         
         try {
-            // 신규 방 생성 여부를 함께 전달
-            boolean isNewRoom = (roomId == null);
             return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, isNewRoom, session);
         } catch (Exception e) {
             log.error("스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
