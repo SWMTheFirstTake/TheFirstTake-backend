@@ -13,27 +13,18 @@ import com.thefirsttake.app.chat.service.ChatQueueService;
 import com.thefirsttake.app.chat.service.ChatOrchestrationService;
 import com.thefirsttake.app.chat.service.ProductSearchService;
 import com.thefirsttake.app.chat.service.ProductCacheService;
+import com.thefirsttake.app.chat.service.ChatStreamOrchestrationService;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
 import org.springframework.data.redis.core.RedisTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Counter;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-import io.micrometer.core.instrument.DistributionSummary;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Value;
-import java.util.HashMap;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -48,14 +39,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
-import java.io.IOException;
+import java.util.Map;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CompletableFuture;
 import com.thefirsttake.app.chat.sse.SseInitializer;
-import com.thefirsttake.app.chat.sse.SseTrackingHooks;
 
 
 @RestController
@@ -65,9 +53,6 @@ public class ChatController {
     
     // ObjectMapper 싱글톤으로 메모리 최적화
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    
-    // SSE 연결별 메모리 추적을 위한 맵
-    private final Map<String, Long> connectionMemoryMap = new ConcurrentHashMap<>();
     
     private final ChatCurationOrchestrationService chatCurationOrchestrationService;
     private final ChatQueueService chatQueueService;
@@ -82,50 +67,9 @@ public class ChatController {
     private final RedisTemplate<String, String> redisTemplate;
     private final SseInitializer sseInitializer;
     
-    // 메트릭 관련 의존성
-    private final Counter sseConnectionCounter;
-    private final Counter sseDisconnectionCounter;
-    private final Timer sseConnectionDurationTimer;
-    private final Counter llmApiCallCounter;
-    private final Counter llmApiSuccessCounter;
-    private final Counter llmApiFailureCounter;
-    private final Timer llmApiResponseTimer;
-    private final Counter productSearchApiCallCounter;
-    private final Counter productSearchApiSuccessCounter;
-    private final Counter productSearchApiFailureCounter;
-    private final Timer productSearchApiResponseTimer;
+    // 새로운 스트림 처리 서비스들
+    private final ChatStreamOrchestrationService chatStreamOrchestrationService;
     
-    // 새로운 전문가별 메트릭
-    private final MeterRegistry meterRegistry;
-    private final Counter llmApiCallCounterByExpert;
-    
-    // SSE API 전체 응답 시간 메트릭
-    private final Timer sseApiTotalResponseTimer;
-    private final Counter sseApiTotalCounter;
-    private final Counter sseApiSuccessCounter;
-    private final Counter sseApiFailureCounter;
-    
-    // Stream API 메모리 모니터링 메트릭
-    private final DistributionSummary sseApiMemoryUsageSummary;
-    private final Counter sseApiMemoryPeakCounter;
-    private final Timer sseApiGcDurationTimer;
-    
-    // SSE 커넥션 풀 최적화 메트릭
-    private final Counter sseConnectionsTotalCounter;
-    private final io.micrometer.core.instrument.Gauge sseConnectionsActiveGauge;
-    private final Timer sseConnectionLifetimeTimer;
-    
-    // 활성 연결 수를 추적하기 위한 AtomicInteger (Gauge에서 사용)
-    private final java.util.concurrent.atomic.AtomicInteger activeConnectionsCount;
-    
-    // 연결별 종료 상태 추적 (중복 감소 방지)
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> connectionEndedMap = new java.util.concurrent.ConcurrentHashMap<>();
-    private final DistributionSummary sseConnectionMemoryUsageSummary;
-    private final Counter sseConnectionPoolHitsCounter;
-    private final Counter sseConnectionPoolMissesCounter;
-    private final Timer sseConnectionCreationTimer;
-    private final Counter sseConnectionTimeoutCounter;
-    private final Counter sseConnectionErrorCounter;
     
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
                          ChatQueueService chatQueueService,
@@ -139,35 +83,7 @@ public class ChatController {
                          SseInitializer sseInitializer,
                          RestTemplate restTemplate,
                          RedisTemplate<String, String> redisTemplate,
-                         Counter sseConnectionCounter,
-                         Counter sseDisconnectionCounter,
-                         Timer sseConnectionDurationTimer,
-                         Counter llmApiCallCounter,
-                         Counter llmApiSuccessCounter,
-                         Counter llmApiFailureCounter,
-                         Timer llmApiResponseTimer,
-                         Counter productSearchApiCallCounter,
-                         Counter productSearchApiSuccessCounter,
-                         Counter productSearchApiFailureCounter,
-                         Timer productSearchApiResponseTimer,
-                         MeterRegistry meterRegistry,
-                         Counter llmApiCallCounterByExpert,
-                         Timer sseApiTotalResponseTimer,
-                         Counter sseApiTotalCounter,
-                         Counter sseApiSuccessCounter,
-                         Counter sseApiFailureCounter,
-                         DistributionSummary sseApiMemoryUsageSummary,
-                         Counter sseApiMemoryPeakCounter,
-                         Timer sseApiGcDurationTimer,
-                         Counter sseConnectionsTotalCounter,
-                         io.micrometer.core.instrument.Gauge sseConnectionsActiveGauge,
-                         Timer sseConnectionLifetimeTimer,
-                         DistributionSummary sseConnectionMemoryUsageSummary,
-                         Counter sseConnectionPoolHitsCounter,
-                         Counter sseConnectionPoolMissesCounter,
-                         Timer sseConnectionCreationTimer,
-                         Counter sseConnectionTimeoutCounter,
-                         Counter sseConnectionErrorCounter) {
+                         ChatStreamOrchestrationService chatStreamOrchestrationService) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -180,146 +96,13 @@ public class ChatController {
         this.sseInitializer = sseInitializer;
         this.restTemplate = restTemplate;
         this.redisTemplate = redisTemplate;
-        this.sseConnectionCounter = sseConnectionCounter;
-        this.sseDisconnectionCounter = sseDisconnectionCounter;
-        this.sseConnectionDurationTimer = sseConnectionDurationTimer;
-        this.llmApiCallCounter = llmApiCallCounter;
-        this.llmApiSuccessCounter = llmApiSuccessCounter;
-        this.llmApiFailureCounter = llmApiFailureCounter;
-        this.llmApiResponseTimer = llmApiResponseTimer;
-        this.productSearchApiCallCounter = productSearchApiCallCounter;
-        this.productSearchApiSuccessCounter = productSearchApiSuccessCounter;
-        this.productSearchApiFailureCounter = productSearchApiFailureCounter;
-        this.productSearchApiResponseTimer = productSearchApiResponseTimer;
-        this.meterRegistry = meterRegistry;
-        this.llmApiCallCounterByExpert = llmApiCallCounterByExpert;
-        this.sseApiTotalResponseTimer = sseApiTotalResponseTimer;
-        this.sseApiTotalCounter = sseApiTotalCounter;
-        this.sseApiSuccessCounter = sseApiSuccessCounter;
-        this.sseApiFailureCounter = sseApiFailureCounter;
-        this.sseApiMemoryUsageSummary = sseApiMemoryUsageSummary;
-        this.sseApiMemoryPeakCounter = sseApiMemoryPeakCounter;
-        this.sseApiGcDurationTimer = sseApiGcDurationTimer;
-        this.sseConnectionsTotalCounter = sseConnectionsTotalCounter;
-        this.sseConnectionsActiveGauge = sseConnectionsActiveGauge;
-        this.activeConnectionsCount = com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections();
-        this.sseConnectionLifetimeTimer = sseConnectionLifetimeTimer;
-        this.sseConnectionMemoryUsageSummary = sseConnectionMemoryUsageSummary;
-        this.sseConnectionPoolHitsCounter = sseConnectionPoolHitsCounter;
-        this.sseConnectionPoolMissesCounter = sseConnectionPoolMissesCounter;
-        this.sseConnectionCreationTimer = sseConnectionCreationTimer;
-        this.sseConnectionTimeoutCounter = sseConnectionTimeoutCounter;
-        this.sseConnectionErrorCounter = sseConnectionErrorCounter;
+        this.chatStreamOrchestrationService = chatStreamOrchestrationService;
     }
     
     @Value("${llm.server.expert-stream-url}")
     private String llmExpertStreamUrl;
     
-    /**
-     * 현재 JVM 메모리 사용량 측정 및 메트릭 기록
-     */
-    private void recordMemoryUsage() {
-        try {
-            Runtime runtime = Runtime.getRuntime();
-            long usedMemory = runtime.totalMemory() - runtime.freeMemory();
-            long maxMemory = runtime.maxMemory();
-            
-            // 메모리 사용량 기록
-            sseApiMemoryUsageSummary.record(usedMemory);
-            
-            // 메모리 사용률이 80% 이상이면 피크 카운터 증가
-            double memoryUsagePercent = (double) usedMemory / maxMemory * 100;
-            if (memoryUsagePercent > 80.0) {
-                sseApiMemoryPeakCounter.increment();
-                log.warn("High memory usage detected: {}% ({}MB/{}MB)", 
-                    String.format("%.1f", memoryUsagePercent),
-                    usedMemory / 1024 / 1024,
-                    maxMemory / 1024 / 1024);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to record memory usage: {}", e.getMessage());
-        }
-    }
     
-    /**
-     * SSE 커넥션 생성 시 메트릭 기록
-     */
-    private Timer.Sample startSSEConnectionTracking(String connectionId) {
-        // SSE 커넥션 생성 시작
-        Timer.Sample connectionCreationTimer = Timer.start();
-        sseConnectionsTotalCounter.increment();
-        activeConnectionsCount.incrementAndGet();
-        sseConnectionPoolMissesCounter.increment(); // 현재는 풀 없으므로 항상 miss
-        
-        // 연결 시작 시점의 메모리 기록
-        Runtime runtime = Runtime.getRuntime();
-        long startMemory = runtime.totalMemory() - runtime.freeMemory();
-        connectionMemoryMap.put(connectionId, startMemory);
-        
-        log.info("SSE connection created. Total: {}, Active: {}, Start Memory: {}MB", 
-            sseConnectionsTotalCounter.count(), 
-            activeConnectionsCount.get(),
-            startMemory / 1024 / 1024);
-        
-        return connectionCreationTimer;
-    }
-    
-    /**
-     * SSE 커넥션 종료 시 메트릭 기록
-     */
-    private void endSSEConnectionTracking(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason, String connectionId) {
-        try {
-            // 커넥션 생성 시간 기록
-            connectionCreationTimer.stop(sseConnectionCreationTimer);
-            
-            // 커넥션 생명주기 시간 기록
-            lifetimeTimer.stop(sseConnectionLifetimeTimer);
-            
-            // 연결별 실제 메모리 사용량 계산
-            Runtime runtime = Runtime.getRuntime();
-            long endMemory = runtime.totalMemory() - runtime.freeMemory();
-            Long startMemory = connectionMemoryMap.remove(connectionId);
-            
-            // 활성 커넥션 수 감소 (중복 감소 방지)
-            int activeConnections;
-            if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-                // 첫 번째 종료만 처리
-                activeConnections = activeConnectionsCount.decrementAndGet();
-            } else {
-                // 이미 종료된 연결이므로 현재 값만 가져옴
-                activeConnections = activeConnectionsCount.get();
-            }
-            
-            if (startMemory != null) {
-                // 연결 시작과 종료 시점의 메모리 차이로 실제 사용량 계산
-                long actualMemoryUsed = Math.max(0, endMemory - startMemory);
-                sseConnectionMemoryUsageSummary.record(actualMemoryUsed);
-                
-                log.info("SSE connection ended. Reason: {}, Connection Memory Used: {}KB, Active: {}", 
-                    reason, actualMemoryUsed / 1024, activeConnections);
-            } else {
-                log.warn("SSE connection start memory not found for connection: {}, Active: {}", 
-                    connectionId, activeConnections);
-            }
-            
-            // 종료 이유별 카운터 증가
-            switch (reason) {
-                case "timeout":
-                    sseConnectionTimeoutCounter.increment();
-                    break;
-                case "error":
-                    sseConnectionErrorCounter.increment();
-                    break;
-                case "completion":
-                default:
-                    // 정상 완료는 별도 카운터 없음
-                    break;
-            }
-                
-        } catch (Exception e) {
-            log.warn("Failed to record SSE connection end metrics: {}", e.getMessage());
-        }
-    }
     @Operation(
             summary = "사용자의 채팅방 목록 조회",
             description = "클라이언트 세션을 기반으로 게스트 사용자를 식별하고, 해당 사용자에 연결된 모든 채팅방 목록을 반환합니다. 새로운 채팅방은 이 API에서 생성하지 않습니다.",
@@ -1292,22 +1075,40 @@ public class ChatController {
             @RequestParam(value = "user_profile", required = false) String userProfile,
             HttpServletRequest httpRequest
     ) {
-    // 1. 세션 처리
-    HttpSession session = httpRequest.getSession(false);
-    if (session == null) {
-        session = httpRequest.getSession(true);
-    }
-    final HttpSession finalSession = session;
+        // 1. 세션 처리
+        HttpSession session = httpRequest.getSession(false);
+        if (session == null) {
+            session = httpRequest.getSession(true);
+        }
 
-    // 2. 방 ID 결정 (한 줄 호출로 추상화) + 실패 시 SSE 에러 이벤트 전송
-    final Long finalRoomId;
-    try {
-        finalRoomId = chatRoomManagementService.getOrCreateRoomId(roomId, finalSession.getId());
-    } catch (Exception e) {
-        log.error("채팅방 생성 실패: sessionId={}, error={}", finalSession.getId(), e.getMessage(), e);
+        // 2. 방 ID 결정 및 실패 시 SSE 에러 이벤트 전송
+        String finalRoomId;
+        try {
+            Long roomIdLong = chatRoomManagementService.getOrCreateRoomId(roomId, session.getId());
+            finalRoomId = roomIdLong.toString();
+        } catch (Exception e) {
+            log.error("채팅방 생성 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+            return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
+        }
+
+        // 3. 스트림 처리 오케스트레이터 서비스로 위임
+        log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}", finalRoomId, userInput, session.getId());
+        
+        try {
+            return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, session);
+        } catch (Exception e) {
+            log.error("스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+            return createErrorSseEmitter("스트림 처리에 실패했습니다: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 에러 SSE 에미터 생성 헬퍼 메서드
+     */
+    private SseEmitter createErrorSseEmitter(String errorMessage) {
         SseEmitter errorEmitter = new SseEmitter(1000L);
         try {
-            CommonResponse errorResponse = CommonResponse.fail("채팅방 생성에 실패했습니다: " + e.getMessage());
+            CommonResponse errorResponse = CommonResponse.fail(errorMessage);
             String errorJson = OBJECT_MAPPER.writeValueAsString(errorResponse);
             errorEmitter.send(SseEmitter.event().name("error").data(errorJson));
             errorEmitter.complete();
@@ -1317,380 +1118,6 @@ public class ChatController {
         return errorEmitter;
     }
 
-    SseInitializer.Result sse = sseInitializer.initialize(new SseTrackingHooks() {
-        @Override
-        public Timer.Sample onStart(String connectionId) {
-            return startSSEConnectionTracking(connectionId);
-        }
-        @Override
-        public void onEnd(Timer.Sample connectionCreationTimer, Timer.Sample lifetimeTimer, String reason, String connectionId) {
-            endSSEConnectionTracking(connectionCreationTimer, lifetimeTimer, reason, connectionId);
-        }
-    });
-    final SseEmitter emitter = sse.emitter();
-    final AtomicBoolean cancelled = sse.cancelled();
-    final AtomicBoolean forceCompleted = sse.forceCompleted();
-    final String connectionId = sse.connectionId();
-    final Timer.Sample connectionCreationTimer = sse.connectionCreationTimer();
-    final Timer.Sample connectionLifetimeTimer = sse.connectionLifetimeTimer();
-    final Timer.Sample totalResponseTimer = sse.totalResponseTimer();
-    final Timer.Sample connectionTimer = sse.connectionTimer();
-
-    // 통합된 스트림 처리 로직
-
-    try {
-        // room → connect 순서로 전송 (신규 방 생성 시 room 먼저)
-        if (roomId == null) {
-            Map<String, Object> roomData = new HashMap<>();
-            roomData.put("room_id", finalRoomId);
-            roomData.put("type", "room");
-            roomData.put("timestamp", System.currentTimeMillis());
-            CommonResponse roomResponse = CommonResponse.success(roomData);
-            String roomJson = OBJECT_MAPPER.writeValueAsString(roomResponse);
-            emitter.send(SseEmitter.event().name("room").data(roomJson));
-        }
-
-        Map<String, Object> connectData = new HashMap<>();
-        connectData.put("message", "SSE 연결 성공");
-        connectData.put("type", "connect");
-        connectData.put("timestamp", System.currentTimeMillis());
-
-        CommonResponse connectResponse = CommonResponse.success(connectData);
-        String json = OBJECT_MAPPER.writeValueAsString(connectResponse);
-        emitter.send(SseEmitter.event().name("connect").data(json));
-    } catch (IOException e) {
-        log.warn("초기 SSE 메시지 전송 실패", e);
-    }
-
-    java.util.concurrent.CompletableFuture.runAsync(() -> {
-        try {
-            // 메모리 사용량 측정 시작
-            recordMemoryUsage();
-            
-            // 사용자 메시지를 먼저 DB에 저장 (세션 ID 기반으로 사용자 생성/조회)
-            try {
-                log.info("사용자 메시지 저장 시작: roomId={}, userInput='{}', sessionId='{}'", finalRoomId, userInput, finalSession.getId());
-                
-                // 세션 ID 기반으로 사용자 생성/조회 (send API와 동일한 로직)
-                UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
-                log.info("세션 기반 사용자 엔티티 조회/생성 완료: userEntity={}, userId={}", userEntity, userEntity != null ? userEntity.getId() : "null");
-                
-                if (userEntity == null) {
-                    log.error("사용자 엔티티가 null입니다. sessionId={}", finalSession.getId());
-                    return;
-                }
-                
-                ChatMessageRequest userMessageRequest = new ChatMessageRequest();
-                userMessageRequest.setContent(userInput);
-                userMessageRequest.setImageUrl(null); // 스트림 API에서는 이미지 없음
-                
-                chatMessageService.saveUserMessage(userEntity, userMessageRequest, finalRoomId);
-                log.info("스트림 API 사용자 메시지를 데이터베이스에 저장했습니다. roomId={}, message='{}'", finalRoomId, userInput);
-            } catch (Exception e) {
-                log.error("스트림 API 사용자 메시지 저장 실패: roomId={}, sessionId={}, error={}", finalRoomId, finalSession.getId(), e.getMessage(), e);
-            }
-            
-            final String externalApiUrl = llmExpertStreamUrl;
-
-            java.util.List<String> expertList = new java.util.ArrayList<>();
-            expertList.add("style_analyst");
-            expertList.add("color_expert");
-            expertList.add("fitting_coordinator");
-
-            // 전문가 완료 상태 추적을 위한 Map
-            java.util.Map<String, Boolean> expertCompleted = new java.util.concurrent.ConcurrentHashMap<>();
-            for (String expert : expertList) {
-                expertCompleted.put(expert, false);
-            }
-
-            for (String curExpert : expertList) {
-                if (cancelled.get()) break;
-                
-                // 각 전문가 처리 전 메모리 측정
-                recordMemoryUsage();
-                
-                Map<String, Object> expertRequest = new HashMap<>();
-                expertRequest.put("user_input", userInput);
-                expertRequest.put("expert_type", curExpert);
-                expertRequest.put("room_id", finalRoomId);
-
-                // user_profile 포함 (있는 경우)
-                if (userProfile != null && !userProfile.trim().isEmpty()) {
-                    Map<String, Object> userProfileMap = new HashMap<>();
-                    userProfileMap.put("profile_text", userProfile);
-                    expertRequest.put("user_profile", userProfileMap);
-                }
-
-                expertRequest.put("context_info", null);
-                expertRequest.put("json_data", null);
-
-                if (cancelled.get()) break;
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(expertRequest, headers);
-
-                if (cancelled.get()) break;
-                
-                // LLM API 호출 메트릭 (전문가별)
-                llmApiCallCounter.increment();
-                llmApiCallCounterByExpert.increment();
-                Timer.Sample llmTimer = Timer.start();
-                
-                ResponseEntity<String> response = restTemplate.exchange(
-                        externalApiUrl,
-                        HttpMethod.POST,
-                        entity,
-                        String.class
-                );
-                
-                llmTimer.stop(llmApiResponseTimer);
-                
-                // 상태 코드별 메트릭 추가
-                Counter.builder("llm_api_status_code_total")
-                        .description("LLM API calls by HTTP status code")
-                        .tag("expert_type", curExpert)
-                        .tag("status_code", String.valueOf(response.getStatusCode().value()))
-                        .register(meterRegistry)
-                        .increment();
-                
-                // 응답 크기 메트릭 추가
-                if (response.getBody() != null) {
-                    DistributionSummary.builder("llm_api_response_size")
-                            .description("LLM API response size in bytes")
-                            .baseUnit("bytes")
-                            .tag("expert_type", curExpert)
-                            .register(meterRegistry)
-                            .record(response.getBody().length());
-                }
-
-                StringBuilder finalText = new StringBuilder();
-
-                if (response.getStatusCode() == HttpStatus.OK) {
-                    llmApiSuccessCounter.increment();
-                    String body = response.getBody();
-                    if (body != null && body.contains("data:")) {
-                        String[] lines = body.split("\n");
-                        for (String line : lines) {
-                            if (cancelled.get()) break;
-                            if (!line.startsWith("data:")) continue;
-                            String jsonData = line.substring(5).trim();
-                            if (jsonData.isEmpty()) continue;
-                            try {
-                                ObjectMapper mapper = OBJECT_MAPPER;
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> parsed = mapper.readValue(jsonData, Map.class);
-                                Object type = parsed.get("type");
-                                if ("content".equals(type) && parsed.containsKey("chunk")) {
-                                    String chunk = String.valueOf(parsed.get("chunk"));
-                                    finalText.append(chunk);
-                                    // 청크를 즉시 전송 (CommonResponse 형식으로)
-                                    if (cancelled.get()) break;
-                                    Map<String, Object> contentPayload = new HashMap<>();
-                                    contentPayload.put("message", chunk);
-                                    contentPayload.put("agent_id", curExpert);
-                                    contentPayload.put("agent_name", getAgentName(curExpert));
-                                    contentPayload.put("type", "content");
-                                    contentPayload.put("timestamp", System.currentTimeMillis());
-                                    
-                                    CommonResponse contentResponse = CommonResponse.success(contentPayload);
-                                    String json = OBJECT_MAPPER.writeValueAsString(contentResponse);
-                                    emitter.send(SseEmitter.event().name("content").data(json));
-                                    try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                                }
-                            } catch (Exception ignore) {
-                            }
-                        }
-                    }
-                } else {
-                    llmApiFailureCounter.increment();
-                    if (!cancelled.get()) {
-                        sendEvent(emitter, "error", "외부 API 호출 실패: " + response.getStatusCode(), 3, curExpert);
-                    }
-                }
-
-                if (cancelled.get()) break;
-                
-                Map<String, Object> completePayload = new HashMap<>();
-                String finalMessage = finalText.toString();
-                completePayload.put("message", finalMessage);
-                completePayload.put("agent_id", curExpert);
-                completePayload.put("agent_name", getAgentName(curExpert));
-
-                // 변수를 미리 선언 (스코프 문제 해결)
-                java.util.List<String> productImageUrls = new java.util.ArrayList<>();
-                java.util.List<String> productIds = new java.util.ArrayList<>();
-                java.util.List<com.thefirsttake.app.chat.dto.response.ProductInfo> products = new java.util.ArrayList<>();
-
-                try {
-                    if (!cancelled.get()) {
-                        // 상품 검색 API 메트릭
-                        productSearchApiCallCounter.increment();
-                        Timer.Sample productTimer = Timer.start();
-                        
-                        Map<String, Object> searchResult = productSearchService.searchProducts(finalMessage);
-                        productTimer.stop(productSearchApiResponseTimer);
-                        
-                        if (searchResult != null) {
-                            productSearchApiSuccessCounter.increment();
-                            try {
-                                productCacheService.cacheProductsFromSearchResult(searchResult);
-                            } catch (Exception cacheErr) {
-                                log.warn("상품 캐싱 오류: {}", cacheErr.getMessage());
-                            }
-                            productImageUrls = productSearchService.extractProductImageUrls(searchResult);
-                            productIds = productCacheService.extractProductIds(searchResult);
-                            
-                            // product URL을 Redis에 저장 (600분 만료)
-                            // 인코딩/디코딩 없이 원본 presigned URL 그대로 저장
-                            for (int i = 0; i < productIds.size() && i < productImageUrls.size(); i++) {
-                                try {
-                                    String productId = productIds.get(i);
-                                    String productUrl = productImageUrls.get(i);
-                                    if (productId != null && productUrl != null && !productId.trim().isEmpty() && !productUrl.trim().isEmpty()) {
-                                        String redisKey = "product_url_" + productId.trim();
-                                        try {
-                                            redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.info("Product URL saved to Redis (raw): key={}, length(original)={}", 
-                                                redisKey, productUrl.trim().length());
-                                        } catch (Exception encodingException) {
-                                            // 실패 시 원본 URL 직접 저장 시도
-                                            redisTemplate.opsForValue().set(redisKey, productUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
-                                            log.warn("Saving raw URL with fallback: key={}, error={}", redisKey, encodingException.getMessage());
-                                        }
-                                    }
-                                } catch (Exception e) {
-                                    log.warn("Failed to save product URL to Redis from search result: productId={}, productUrl={}, error={}", 
-                                        productIds.get(i), productImageUrls.get(i), e.getMessage());
-                                }
-                            }
-                            
-                            int minSize = Math.min(productImageUrls.size(), productIds.size());
-                            for (int i = 0; i < minSize; i++) {
-                                com.thefirsttake.app.chat.dto.response.ProductInfo productInfo =
-                                        com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
-                                                .productUrl(productImageUrls.get(i))
-                                                .productId(productIds.get(i))
-                                                .build();
-                                products.add(productInfo);
-                            }
-                            completePayload.put("products", products);
-                        } else {
-                            productSearchApiFailureCounter.increment();
-                        }
-                        
-                        // 상품 정보가 있는 경우 DB에 저장
-                        if (!productImageUrls.isEmpty() || !productIds.isEmpty()) {
-                            try {
-                                log.info("AI 응답 저장 시작: agent={}, roomId={}", curExpert, finalRoomId);
-                                UserEntity userEntity = userSessionService.getOrCreateGuestUser(finalSession.getId());
-                                ChatRoom chatRoom = chatRoomManagementService.getRoomById(finalRoomId);
-                                log.info("AI 응답 저장용 엔티티 조회 완료: userEntity={}, chatRoom={}", 
-                                        userEntity != null ? userEntity.getId() : "null", 
-                                        chatRoom != null ? chatRoom.getId() : "null");
-                                
-                                if (userEntity == null || chatRoom == null) {
-                                    log.error("필수 엔티티가 null입니다. userEntity={}, chatRoom={}", userEntity, chatRoom);
-                                    return;
-                                }
-                                
-                                // ChatAgentResponse 객체 생성
-                                ChatAgentResponse agentResponse = new ChatAgentResponse();
-                                agentResponse.setAgentId(curExpert);
-                                agentResponse.setMessage(finalMessage);
-                                agentResponse.setProducts(products);
-                                
-                                // DB에 저장
-                                chatMessageService.saveAIResponse(userEntity, chatRoom, agentResponse);
-                                log.info("스트림 완료 시 AI 응답을 데이터베이스에 저장했습니다. agent={}, roomId={}", curExpert, finalRoomId);
-                            } catch (Exception dbErr) {
-                                log.error("스트림 완료 시 DB 저장 실패: agent={}, roomId={}, error={}", curExpert, finalRoomId, dbErr.getMessage(), dbErr);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("상품 검색 처리 중 오류: {}", e.getMessage());
-                }
-
-                if (!cancelled.get()) {
-                    // 전문가 완료 상태 업데이트
-                    expertCompleted.put(curExpert, true);
-                    
-                    // complete 이벤트를 CommonResponse 형식으로 변경 (SSE 이벤트 자체를 CommonResponse로)
-                    CommonResponse completeResponse = CommonResponse.success(completePayload);
-                    String json = OBJECT_MAPPER.writeValueAsString(completeResponse);
-                    emitter.send(SseEmitter.event().name("complete").data(json));
-                    
-                    // 모든 전문가 완료 확인
-                    boolean allExpertsCompleted = expertCompleted.values().stream().allMatch(Boolean::booleanValue);
-                    if (allExpertsCompleted) {
-                        log.info("🎉 모든 전문가 응답 완료 - SSE 연결 종료: roomId={}", finalRoomId);
-                        try {
-                            // 최종 완료 메시지 전송
-                            Map<String, Object> finalCompleteMessage2 = new HashMap<>();
-                            finalCompleteMessage2.put("message", "모든 전문가 응답이 완료되었습니다.");
-                            finalCompleteMessage2.put("total_experts", expertList.size());
-                            finalCompleteMessage2.put("timestamp", System.currentTimeMillis());
-                            
-                            CommonResponse finalResponse = CommonResponse.success(finalCompleteMessage2);
-                            String finalJson = OBJECT_MAPPER.writeValueAsString(finalResponse);
-                            emitter.send(SseEmitter.event().name("final_complete").data(finalJson));
-                            
-                            // 명시적 SSE 연결 종료
-                            forceCompleted.set(true);
-                            emitter.complete();
-                            return; // 루프 종료
-                        } catch (Exception e) {
-                            log.error("SSE 최종 완료 처리 실패: roomId={}, error={}", finalRoomId, e.getMessage(), e);
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            try {
-                if (!cancelled.get()) {
-                    sendEvent(emitter, "error", "스트림 처리 오류: " + e.getMessage(), -1, null);
-                }
-            } catch (IOException ignored) {}
-        } finally {
-            try { 
-                forceCompleted.set(true);
-                // 중복 완료 방지
-                if (connectionEndedMap.putIfAbsent(connectionId, true) == null) {
-                    // 이미 다른 곳에서 처리되지 않은 경우에만 처리
-                    log.warn("SSE 연결이 finally 블록에서 종료됨: connectionId={}", connectionId);
-                }
-                emitter.complete(); 
-            } catch (Exception ignore) {}
-        }
-    });
-
-    return emitter;
-}
-
-private void sendEvent(SseEmitter emitter, String type, Object data, int step, String agentId) throws IOException {
-    Map<String, Object> message = new HashMap<>();
-    message.put("type", type);
-    message.put("data", data);
-    message.put("timestamp", System.currentTimeMillis());
-    if (agentId != null) {
-        message.put("agent_id", agentId);
-    }
-    String json = OBJECT_MAPPER.writeValueAsString(message);
-    emitter.send(SseEmitter.event().name(type).data(json));
-}
-
-private String getAgentName(String agentId) {
-    switch (agentId) {
-        case "style_analyst":
-            return "스타일 분석가";
-        case "color_expert":
-            return "컬러 전문가";
-        case "fitting_coordinator":
-            return "피팅 코디네이터";
-        default:
-            return agentId != null ? agentId : "알 수 없음";
-    }
-}
 
     @Operation(
         summary = "새 채팅방 생성",
