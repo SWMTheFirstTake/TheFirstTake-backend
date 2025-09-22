@@ -111,10 +111,26 @@ public class AuthController {
             KakaoUserInfo userInfo = kakaoAuthService.getUserInfo(kakaoAccessToken);
             log.info("카카오 사용자 정보 조회 성공. userId: {}", userInfo.getId());
             
+            // 카카오 사용자 정보 페이로드 로그 출력
+            log.info("=== 카카오 사용자 정보 페이로드 ===");
+            log.info("카카오 사용자 ID: {}", userInfo.getId());
+            log.info("카카오 닉네임: {}", userInfo.getNickname());
+            log.info("카카오 이메일: {}", userInfo.getEmail());
+            log.info("카카오 프로필 이미지: {}", userInfo.getProfileImage());
+            log.info("=======================================");
+            
             // 3. JWT 토큰 생성 (액세스 토큰 + 리프레시 토큰)
             String jwtAccessToken = jwtTokenGenerationTimer.recordCallable(() -> 
                 jwtService.generateAccessToken(userInfo.getId(), userInfo.getNickname()));
             String jwtRefreshToken = jwtService.generateRefreshToken(userInfo.getId());
+            
+            // JWT 토큰 페이로드 로그 출력
+            log.info("=== JWT 토큰 생성 정보 ===");
+            log.info("JWT 액세스 토큰 길이: {} characters", jwtAccessToken.length());
+            log.info("JWT 액세스 토큰 미리보기: {}...", jwtAccessToken.substring(0, Math.min(50, jwtAccessToken.length())));
+            log.info("JWT 리프레시 토큰 길이: {} characters", jwtRefreshToken.length());
+            log.info("JWT 리프레시 토큰 미리보기: {}...", jwtRefreshToken.substring(0, Math.min(50, jwtRefreshToken.length())));
+            log.info("=============================");
             
             // 4. HttpOnly 쿠키로 토큰 설정
             // 액세스 토큰 쿠키 (15분)
