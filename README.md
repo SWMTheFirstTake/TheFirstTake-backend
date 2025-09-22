@@ -16,19 +16,39 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 │ │ Chat Input  │ │    │ │Chat Controller│ │    │ │Claude Vision│ │
 │ │ POST /send  │◄─────┤ │ GET /receive │ │    │ │    API      │ │
 │ │ GET /receive│ │    │ │              │ │    │ │             │ │
-│ └─────────────┘ │    │ └──────────────┘ │    │ └─────────────┘ │
-│ ┌─────────────┐ │    │ ┌──────────────┐ │    │ ┌─────────────┐ │
-│ │Fitting Input│ │    │ │Fitting       │ │    │ │Product Search│ │
-│ │POST /fitting│◄─────┤ │Controller    │ │    │ │    API      │ │
-│ │GET /status  │ │    │ │GET /result   │ │    │ │             │ │
-│ └─────────────┘ │    │ └──────────────┘ │    │ └─────────────┘ │
-└─────────────────┘    │ ┌──────────────┐ │    │ ┌─────────────┐ │
-                       │ │Queue Service │ │    │ │  FitRoom    │ │
-                       │ │              │ │    │ │    API      │ │
-                       │ │ ┌──────────┐ │ │    │ │(Virtual     │ │
-                       │ │ │Redis Queue│ │ │    │ │ Fitting)    │ │
-                       │ │ └──────────┘ │ │    │ └─────────────┘ │
-                       │ └──────────────┘ │    └─────────────────┘
+│ │ SSE Stream  │ │    │ └──────────────┘ │    │ └─────────────┘ │
+│ └─────────────┘ │    │ ┌──────────────┐ │    │ ┌─────────────┐ │
+│ ┌─────────────┐ │    │ │ChatStream    │ │    │ │Product Search│ │
+│ │Fitting Input│ │    │ │Orchestration │ │    │ │    API      │ │
+│ │POST /fitting│◄─────┤ │Service       │ │    │ │             │ │
+│ │GET /status  │ │    │ └──────────────┘ │    │ └─────────────┘ │
+│ └─────────────┘ │    │ ┌──────────────┐ │    │ ┌─────────────┐ │
+└─────────────────┘    │ │SSEConnection │ │    │ │  FitRoom    │ │
+                       │ │Service       │ │    │ │    API      │ │
+                       │ └──────────────┘ │    │ │(Virtual     │ │
+                       │ ┌──────────────┐ │    │ │ Fitting)    │ │
+                       │ │ExpertStream  │ │    │ └─────────────┘ │
+                       │ │Service       │ │    └─────────────────┘
+                       │ └──────────────┘ │
+                       │ ┌──────────────┐ │
+                       │ │ProductSearch │ │
+                       │ │StreamService │ │
+                       │ └──────────────┘ │
+                       │ ┌──────────────┐ │
+                       │ │MessageStorage│ │
+                       │ │Service       │ │
+                       │ └──────────────┘ │
+                       │ ┌──────────────┐ │
+                       │ │StreamMetrics │ │
+                       │ │Service       │ │
+                       │ └──────────────┘ │
+                       │ ┌──────────────┐ │
+                       │ │Queue Service │ │
+                       │ │              │ │
+                       │ │ ┌──────────┐ │ │
+                       │ │ │Redis Queue│ │ │
+                       │ │ └──────────┘ │ │
+                       │ └──────────────┘ │
                        │ ┌──────────────┐ │
                        │ │Message Service│ │
                        │ │Room Service  │ │
@@ -631,23 +651,26 @@ GET /fitting/proxy-image → SimpleFittingController →
 외부 이미지 URL 다운로드 → CORS 헤더 설정 → 이미지 바이너리 반환
 ```
 
-### 7. 스트림 API 처리 흐름
+### 7. 스트림 API 처리 흐름 (기존 방 사용)
 ```
 GET /rooms/{roomId}/messages/stream → ChatController → 
-세션 기반 사용자 생성/조회 → 사용자 메시지 DB 저장 → 
-외부 AI 스트림 API 호출 → 실시간 응답 스트리밍 → 
-상품 검색 → 상품 정보 Redis 캐싱 → AI 응답 DB 저장 → 
+ChatStreamOrchestrationService → SSEConnectionService → 
+MessageStorageService (사용자 메시지 저장) → 
+ExpertStreamService (전문가별 처리) → 
+ProductSearchStreamService (상품 검색 & 캐싱) → 
+StreamMetricsService (메트릭 수집) → 
 SSE 이벤트 전송 (connect, content, complete, error)
 ```
 
-### 8. 자동 방 생성 스트림 API 처리 흐름
+### 8. 자동 방 생성 스트림 API 처리 흐름 (신규 방 생성)
 ```
 GET /rooms/messages/stream → ChatController → 
-세션 기반 사용자 생성/조회 → 채팅방 자동 생성 → 
-방 정보 SSE 전송 (room 이벤트) → 사용자 메시지 DB 저장 → 
-외부 AI 스트림 API 호출 → 실시간 응답 스트리밍 → 
-상품 검색 → 상품 정보 Redis 캐싱 → AI 응답 DB 저장 → 
-SSE 이벤트 전송 (connect, content, complete, error)
+ChatStreamOrchestrationService → SSEConnectionService → 
+room 이벤트 전송 → MessageStorageService (사용자 메시지 저장) → 
+ExpertStreamService (전문가별 처리) → 
+ProductSearchStreamService (상품 검색 & 캐싱) → 
+StreamMetricsService (메트릭 수집) → 
+SSE 이벤트 전송 (room, connect, content, complete, error)
 ```
 
 ## 🗄️ 데이터베이스 스키마
@@ -667,6 +690,27 @@ SSE 이벤트 전송 (connect, content, complete, error)
 - **product_id:{product_id}**: 상품 정보 캐시 (상품명, 설명, 태그 등)
 
 ## 🔧 최근 업데이트 사항
+
+### v1.10.0 (2024-01-29) - 스트림 처리 로직 서비스 분리 및 아키텍처 개선
+- **스트림 처리 로직 모듈화**:
+  - 기존 327라인의 복잡한 스트림 처리 로직을 6개의 독립적인 서비스로 분리
+  - 단일 책임 원칙 적용으로 코드 가독성 및 유지보수성 향상
+  - 각 서비스별 독립적인 테스트 및 재사용 가능한 구조 구축
+- **새로운 서비스 아키텍처**:
+  - `ChatStreamOrchestrationService`: 전체 스트림 프로세스 조율 및 의존성 관리
+  - `SSEConnectionService`: SSE 연결 초기화, 이벤트 전송, 연결 종료 처리
+  - `ExpertStreamService`: 전문가별 API 호출, 스트림 응답 처리, 완료 상태 추적
+  - `ProductSearchStreamService`: 상품 검색, 캐싱, ProductInfo 객체 생성
+  - `MessageStorageService`: 사용자 메시지 및 AI 응답 저장
+  - `StreamMetricsService`: LLM API, 상품 검색 API, 메모리 사용량 메트릭 수집
+- **성능 및 안정성 개선**:
+  - 불필요한 DB 호출 제거로 성능 최적화
+  - 명확한 에러 핸들링 및 로깅 개선
+  - 메모리 사용량 최적화 및 리소스 관리 강화
+- **코드 품질 향상**:
+  - 의존성 주입을 통한 느슨한 결합 구조
+  - 인터페이스 기반 설계로 확장성 향상
+  - 단위 테스트 작성 용이성 증대
 
 ### v1.9.0 (2024-01-28) - SSE 커넥션 모니터링 및 최적화 시스템 구축
 - **SSE 커넥션 풀 최적화를 위한 모니터링 시스템**:
@@ -1013,6 +1057,8 @@ curl -s "http://localhost:9090/api/v1/query?query=jvm_memory_used_bytes{area=\"h
 - **S3 이미지 저장**: CDN을 통한 빠른 이미지 로딩
 - **SSE 커넥션 모니터링**: 실시간 연결 상태 추적으로 메모리 효율성 향상
 - **메트릭 기반 최적화**: Prometheus 지표를 통한 데이터 기반 성능 개선
+- **서비스 분리 아키텍처**: 모듈화된 서비스 구조로 확장성 및 유지보수성 향상
+- **의존성 주입**: 느슨한 결합을 통한 테스트 용이성 및 코드 재사용성 증대
 
 ## 🤝 기여하기
 
