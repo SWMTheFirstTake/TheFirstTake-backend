@@ -48,7 +48,10 @@ public class SSEConnectionService {
         try {
             // 신규 방 생성 시 room 이벤트 먼저 전송
             if (roomId == null) {
+                log.info("신규 방 생성 감지 - room 이벤트 전송: roomId={}", finalRoomId);
                 sendRoomEvent(emitter, finalRoomId);
+            } else {
+                log.info("기존 방 사용 - room 이벤트 생략: roomId={}", roomId);
             }
             
             // connect 이벤트 전송

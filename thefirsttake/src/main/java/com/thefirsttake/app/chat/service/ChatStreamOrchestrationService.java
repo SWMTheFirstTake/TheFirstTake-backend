@@ -32,11 +32,12 @@ public class ChatStreamOrchestrationService {
      * 스트림 채팅 처리 메인 메서드
      * @param userInput 사용자 입력
      * @param userProfile 사용자 프로필
-     * @param roomId 방 ID (신규 생성 시 null)
+     * @param roomId 방 ID
+     * @param isNewRoom 신규 방 생성 여부
      * @param session 세션
      * @return SSE 에미터
      */
-    public SseEmitter processStreamChat(String userInput, String userProfile, String roomId, HttpSession session) {
+    public SseEmitter processStreamChat(String userInput, String userProfile, String roomId, boolean isNewRoom, HttpSession session) {
         
         // 연결 ID 생성
         String connectionId = generateConnectionId(session);
@@ -48,15 +49,15 @@ public class ChatStreamOrchestrationService {
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicBoolean forceCompleted = new AtomicBoolean(false);
         
-        // 최종 방 ID 결정 (신규 생성 시 UUID 생성)
-        String finalRoomId = (roomId != null) ? roomId : generateRoomId();
+        // 최종 방 ID 결정 (이미 ChatController에서 결정됨)
+        String finalRoomId = roomId;
         
         log.info("🚀 스트림 채팅 처리 시작: connectionId={}, roomId={}, finalRoomId={}", 
                 connectionId, roomId, finalRoomId);
         
         try {
-            // SSE 연결 초기화
-            sseConnectionService.initializeConnection(connectionId, emitter, roomId, finalRoomId);
+            // SSE 연결 초기화 (신규 방 생성 여부를 전달)
+            sseConnectionService.initializeConnection(connectionId, emitter, isNewRoom ? null : roomId, finalRoomId);
             
             // 비동기 스트림 처리 시작
             CompletableFuture.runAsync(() -> {

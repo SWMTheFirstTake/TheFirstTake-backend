@@ -1095,7 +1095,9 @@ public class ChatController {
         log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}", finalRoomId, userInput, session.getId());
         
         try {
-            return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, session);
+            // 신규 방 생성 여부를 함께 전달
+            boolean isNewRoom = (roomId == null);
+            return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, isNewRoom, session);
         } catch (Exception e) {
             log.error("스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
             return createErrorSseEmitter("스트림 처리에 실패했습니다: " + e.getMessage());
