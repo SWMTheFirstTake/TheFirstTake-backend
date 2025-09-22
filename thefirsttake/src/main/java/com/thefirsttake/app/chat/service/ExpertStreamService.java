@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import reactor.core.publisher.Flux;
 
 /**
  * 전문가별 스트림 처리를 담당하는 서비스
@@ -39,6 +41,7 @@ public class ExpertStreamService {
     private String llmExpertStreamUrl;
     
     private final RestTemplate restTemplate;
+    private final WebClient.Builder webClientBuilder;
     private final SSEConnectionService sseConnectionService;
     private final StreamMetricsService streamMetricsService;
     private final ProductSearchStreamService productSearchStreamService;
@@ -98,31 +101,16 @@ public class ExpertStreamService {
                 return new ExpertProcessResult("", products, false);
             }
             
-            // LLM API 호출
-            ResponseEntity<String> response = callLlmApi(expertRequest, expertType);
+            // LLM API 진짜 스트림 호출
+            processLlmStreamResponse(expertRequest, expertType, emitter, cancelled, finalText);
             
-            if (cancelled.get()) {
-                return new ExpertProcessResult("", products, false);
-            }
-            
-            // 응답 처리
-            if (response.getStatusCode() == HttpStatus.OK) {
-                finalText = processStreamResponse(response.getBody(), expertType, emitter, cancelled);
+            // 상품 검색 및 캐싱
+            if (!cancelled.get()) {
+                products = productSearchStreamService.searchAndCacheProducts(finalText.toString());
                 
-                // 상품 검색 및 캐싱
-                if (!cancelled.get()) {
-                    products = productSearchStreamService.searchAndCacheProducts(finalText.toString());
-                    
-                    // AI 응답 저장
-                    if (!products.isEmpty()) {
-                        messageStorageService.saveAIResponse(sessionId, expertType, finalText.toString(), products, roomId);
-                    }
-                }
-                
-            } else {
-                log.error("LLM API 호출 실패: expertType={}, statusCode={}", expertType, response.getStatusCode());
-                if (!cancelled.get()) {
-                    sseConnectionService.sendErrorEvent(emitter, "외부 API 호출 실패: " + response.getStatusCode(), expertType);
+                // AI 응답 저장
+                if (!products.isEmpty()) {
+                    messageStorageService.saveAIResponse(sessionId, expertType, finalText.toString(), products, roomId);
                 }
             }
             
@@ -159,79 +147,73 @@ public class ExpertStreamService {
     }
     
     /**
-     * LLM API 호출
+     * LLM API 진짜 스트림 호출 및 처리
      */
-    private ResponseEntity<String> callLlmApi(Map<String, Object> expertRequest, String expertType) {
-        // HTTP 요청 헤더 설정
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(expertRequest, headers);
-        
-        // LLM API 호출 메트릭 시작
-        var timerSample = streamMetricsService.startLlmApiCall(expertType);
-        
-        // API 호출
-        ResponseEntity<String> response = restTemplate.exchange(
-                llmExpertStreamUrl,
-                HttpMethod.POST,
-                entity,
-                String.class
-        );
-        
-        // 메트릭 종료
-        streamMetricsService.endLlmApiCall(
-                timerSample, 
-                expertType, 
-                response.getStatusCode().value(), 
-                response.getBody(), 
-                response.getStatusCode() == HttpStatus.OK
-        );
-        
-        return response;
-    }
-    
-    /**
-     * 스트림 응답 처리
-     */
-    private StringBuilder processStreamResponse(String body, String expertType, SseEmitter emitter, AtomicBoolean cancelled) {
-        StringBuilder finalText = new StringBuilder();
-        
-        if (body != null && body.contains("data:")) {
-            String[] lines = body.split("\n");
-            for (String line : lines) {
-                if (cancelled.get()) break;
-                if (!line.startsWith("data:")) continue;
-                
-                String jsonData = line.substring(5).trim();
-                if (jsonData.isEmpty()) continue;
-                
-                try {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> parsed = OBJECT_MAPPER.readValue(jsonData, Map.class);
-                    Object type = parsed.get("type");
+    private void processLlmStreamResponse(Map<String, Object> expertRequest, String expertType, 
+                                        SseEmitter emitter, AtomicBoolean cancelled, StringBuilder finalText) {
+        try {
+            // LLM API 호출 메트릭 시작
+            var timerSample = streamMetricsService.startLlmApiCall(expertType);
+            
+            // WebClient로 진짜 스트림 호출
+            webClientBuilder.build().post()
+                .uri(llmExpertStreamUrl)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(expertRequest)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .doOnNext(chunk -> {
+                    if (cancelled.get()) return;
                     
-                    if ("content".equals(type) && parsed.containsKey("chunk")) {
-                        String chunk = String.valueOf(parsed.get("chunk"));
-                        finalText.append(chunk);
+                    // 디버깅: 모든 청크 로그 출력
+                    log.info("Received chunk from LLM server: expertType={}, chunk={}", expertType, chunk);
+                    
+                    // JSON 형식 파싱 (data: 접두사 없음)
+                    try {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> parsed = OBJECT_MAPPER.readValue(chunk, Map.class);
+                        String type = String.valueOf(parsed.get("type"));
                         
-                        // 청크를 즉시 전송
-                        if (cancelled.get()) break;
-                        sseConnectionService.sendContentEvent(emitter, chunk, expertType, getAgentName(expertType));
-                        
-                        try { 
-                            Thread.sleep(100); // 스트림 딜레이
-                        } catch (InterruptedException ie) { 
-                            Thread.currentThread().interrupt(); 
+                        // content 이벤트만 처리
+                        if ("content".equals(type) && parsed.containsKey("chunk")) {
+                            String contentChunk = String.valueOf(parsed.get("chunk"));
+                            finalText.append(contentChunk);
+                            
+                            log.info("Processing and sending content event: expertType={}, chunk={}", expertType, contentChunk);
+                            
+                            // 즉시 클라이언트로 전송 (딜레이 없음!)
+                            sseConnectionService.sendContentEvent(emitter, contentChunk, expertType, getAgentName(expertType));
                         }
+                        
+                    } catch (Exception e) {
+                        log.warn("Stream chunk parsing error: expertType={}, chunk={}, error={}", expertType, chunk, e.getMessage());
                     }
-                } catch (Exception e) {
-                    log.warn("스트림 응답 파싱 오류: expertType={}, line={}, error={}", expertType, line, e.getMessage());
-                }
+                })
+                .doOnError(error -> {
+                    log.error("LLM 스트림 호출 실패: expertType={}, error={}", expertType, error.getMessage(), error);
+                    if (!cancelled.get()) {
+                        sseConnectionService.sendErrorEvent(emitter, "LLM 스트림 호출 실패: " + error.getMessage(), expertType);
+                    }
+                    
+                    // 메트릭 종료 (에러)
+                    streamMetricsService.endLlmApiCall(timerSample, expertType, 500, null, false);
+                })
+                .doOnComplete(() -> {
+                    log.info("LLM 스트림 완료: expertType={}", expertType);
+                    
+                    // 메트릭 종료 (성공)
+                    streamMetricsService.endLlmApiCall(timerSample, expertType, 200, finalText.toString(), true);
+                })
+                .blockLast(); // 스트림 완료까지 대기
+                
+        } catch (Exception e) {
+            log.error("LLM 스트림 처리 중 오류: expertType={}, error={}", expertType, e.getMessage(), e);
+            if (!cancelled.get()) {
+                sseConnectionService.sendErrorEvent(emitter, "LLM 스트림 처리 오류: " + e.getMessage(), expertType);
             }
         }
-        
-        return finalText;
     }
+    
     
     /**
      * 에이전트 이름 반환
@@ -285,3 +267,4 @@ public class ExpertStreamService {
         public boolean isSuccess() { return success; }
     }
 }
+
