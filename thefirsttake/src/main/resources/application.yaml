@@ -32,7 +32,8 @@ jpa:
           kakao:
             client-id: "client-id"
             client-secret: "client-secret"
-            redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
+            # redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
+            redirect-uri: "https://the-first-take.com/api/auth/callback/kakao"
 #            redirect-uri: "http://localhost:3000/api/auth/callback/kakao"
 #            redirect-uri: "http://localhost:5500/kakao-callback.html"
             authorization-grant-type: authorization_code
@@ -51,7 +52,7 @@ jwt:
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
   client-secret: ${KAKAO_CLIENT_SECRET}
-  redirect-uri: ${KAKAO_REDIRECT_URI:https://the-second-take.com/api/auth/kakao/callback}
+  redirect-uri: ${KAKAO_REDIRECT_URI:https://the-first-take.com/api/auth/kakao/callback}
 llm:
   server:
     expert-single-url: ${LLM_SERVER_EXPERT_SINGLE_URL}
