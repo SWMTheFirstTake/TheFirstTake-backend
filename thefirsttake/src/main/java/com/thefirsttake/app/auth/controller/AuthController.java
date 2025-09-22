@@ -73,7 +73,7 @@ public class AuthController {
                 examples = @ExampleObject(
                     name = "성공 예시",
                     description = "로그인 성공 시 메인 페이지로 리다이렉트됩니다.",
-                    value = "Redirect to https://the-second-take.com/"
+                    value = "Redirect to https://the-first-take.com/"
                 )
             )
         ),
@@ -85,7 +85,7 @@ public class AuthController {
                 examples = @ExampleObject(
                     name = "실패 예시",
                     description = "로그인 실패 시 에러 페이지로 리다이렉트됩니다.",
-                    value = "Redirect to https://the-second-take.com/auth/error?message=에러메시지"
+                    value = "Redirect to https://the-firsrt-take.com/auth/error?message=에러메시지"
                 )
             )
         )
@@ -151,7 +151,7 @@ public class AuthController {
             
             // 6. 프론트엔드로 리다이렉트
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("https://the-second-take.com/"));
+            headers.setLocation(URI.create("https://the-first-take.com/"));
             
             log.info("카카오 로그인 성공. 프론트엔드로 리다이렉트");
             return new ResponseEntity<>(headers, HttpStatus.FOUND);
@@ -163,7 +163,7 @@ public class AuthController {
             kakaoLoginFailureCounter.increment();
             
             // 실패 시 에러 페이지로 리다이렉트
-            String errorUrl = "https://the-second-take.com/auth/error?message=" + 
+            String errorUrl = "https://the-first-take.com/auth/error?message=" + 
                 URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8);
             
             HttpHeaders headers = new HttpHeaders();
