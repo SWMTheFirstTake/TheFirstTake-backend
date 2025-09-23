@@ -31,4 +31,7 @@ public class UserEntity {
 
     @Column(name = "session_id")
     private String sessionId;
+    
+    @Column(name = "kakao_user_id")
+    private String kakaoUserId;
 }

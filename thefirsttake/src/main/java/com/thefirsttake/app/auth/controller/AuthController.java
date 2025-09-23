@@ -5,6 +5,8 @@ import com.thefirsttake.app.auth.dto.UserInfo;
 import com.thefirsttake.app.auth.service.JwtService;
 import com.thefirsttake.app.auth.service.KakaoAuthService;
 import com.thefirsttake.app.common.response.CommonResponse;
+import com.thefirsttake.app.common.user.entity.UserEntity;
+import com.thefirsttake.app.common.user.repository.UserEntityRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,6 +40,7 @@ public class AuthController {
     
     private final KakaoAuthService kakaoAuthService;
     private final JwtService jwtService;
+    private final UserEntityRepository userEntityRepository;
     private final Counter kakaoLoginSuccessCounter;
     private final Counter kakaoLoginFailureCounter;
     private final Counter logoutCounter;
@@ -108,21 +111,33 @@ public class AuthController {
             log.info("카카오 액세스 토큰 획득 성공");
             
             // 2. Access Token으로 사용자 정보 조회
-            KakaoUserInfo userInfo = kakaoAuthService.getUserInfo(kakaoAccessToken);
-            log.info("카카오 사용자 정보 조회 성공. userId: {}", userInfo.getId());
+            KakaoUserInfo kakaoUserInfo = kakaoAuthService.getUserInfo(kakaoAccessToken);
+            log.info("카카오 사용자 정보 조회 성공. userId: {}", kakaoUserInfo.getId());
             
             // 카카오 사용자 정보 페이로드 로그 출력
             log.info("=== 카카오 사용자 정보 페이로드 ===");
-            log.info("카카오 사용자 ID: {}", userInfo.getId());
-            log.info("카카오 닉네임: {}", userInfo.getNickname());
-            log.info("카카오 이메일: {}", userInfo.getEmail());
-            log.info("카카오 프로필 이미지: {}", userInfo.getProfileImage());
+            log.info("카카오 사용자 ID: {}", kakaoUserInfo.getId());
+            log.info("카카오 닉네임: {}", kakaoUserInfo.getNickname());
+            log.info("카카오 이메일: {}", kakaoUserInfo.getEmail());
+            log.info("카카오 프로필 이미지: {}", kakaoUserInfo.getProfileImage());
             log.info("=======================================");
             
-            // 3. JWT 토큰 생성 (액세스 토큰 + 리프레시 토큰)
+            // 3. DB에서 사용자 조회 또는 생성
+            UserEntity userEntity = userEntityRepository.findByKakaoUserId(kakaoUserInfo.getId())
+                .orElseGet(() -> {
+                    // 카카오 사용자가 DB에 없으면 새로 생성
+                    UserEntity newUser = new UserEntity();
+                    newUser.setKakaoUserId(kakaoUserInfo.getId());
+                    newUser.setIsGuest(false); // 카카오 로그인 사용자는 게스트가 아님
+                    return userEntityRepository.save(newUser);
+                });
+            
+            log.info("DB 사용자 조회/생성 완료. DB 사용자 ID: {}", userEntity.getId());
+            
+            // 4. JWT 토큰 생성 (우리 DB의 사용자 ID만 사용)
             String jwtAccessToken = jwtTokenGenerationTimer.recordCallable(() -> 
-                jwtService.generateAccessToken(userInfo.getId(), userInfo.getNickname()));
-            String jwtRefreshToken = jwtService.generateRefreshToken(userInfo.getId());
+                jwtService.generateAccessToken(String.valueOf(userEntity.getId())));
+            String jwtRefreshToken = jwtService.generateRefreshToken(String.valueOf(userEntity.getId()));
             
             // JWT 토큰 페이로드 로그 출력
             log.info("=== JWT 토큰 생성 정보 ===");

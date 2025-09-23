@@ -36,13 +36,12 @@ public class JwtService {
                 .compact();
     }
     
-    public String generateAccessToken(String userId, String nickname) {
+    public String generateAccessToken(String userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + 15 * 60 * 1000); // 15분
         
         return Jwts.builder()
                 .setSubject(userId)
-                .claim("nickname", nickname)
                 .claim("type", "access")
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)

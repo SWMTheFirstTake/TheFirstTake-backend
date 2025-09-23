@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface UserEntityRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findBySessionId(String sesssionId);
+    Optional<UserEntity> findByKakaoUserId(String kakaoUserId);
 }
