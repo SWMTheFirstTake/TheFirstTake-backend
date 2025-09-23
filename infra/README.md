@@ -14,7 +14,7 @@ infra/
 
 ### clean-ecs-cluster.yaml
 
-**목적**: 테스트 환경용 ECS 클러스터 및 이중 서비스 구성
+**목적**: 테스트 환경용 ECS 클러스터 및 이중 서비스 구성 (ALB Access Logs 포함)
 
 #### 주요 구성 요소
 
@@ -39,6 +39,7 @@ infra/
 
 ##### 4. 로드 밸런서
 - **Application Load Balancer**: 인터넷 연결
+- **Access Logs**: S3 버킷 `the-first-take-ecs-log` 아래 `alb-logs/` 프리픽스로 저장
 - **Target Groups**:
   - Backend (포트 8000): `/api/*`, `/actuator/*` 경로
   - LLM (포트 6020): `/llm/*` 경로
@@ -46,15 +47,21 @@ infra/
 
 ##### 5. ECS 서비스
 - **Backend Service**: Spring Boot 애플리케이션
-  - CPU: 512, Memory: 1024MB
-  - 이미지: `023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-backend:latest`
-- **LLM Service**: LLM 서버
   - CPU: 1024, Memory: 2048MB
-  - 이미지: `023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-llm:latest`
+  - 이미지: ECR 다이제스트 고정(예: `.../thefirsttake-backend@sha256:...`)
+- **LLM Service**: LLM 서버
+  - CPU: 512, Memory: 1024MB
+  - 이미지: ECR 다이제스트 고정(예: `.../thefirsttake-llm@sha256:...`)
 
-##### 6. 환경변수 및 시크릿
+##### 6. ECR 리포지토리
+- `test-thefirsttake-backend` 자동 생성 (푸시 시 이미지 스캔 활성화)
+
+##### 7. 환경변수 및 시크릿
 - **환경변수**: 데이터베이스, Redis, LLM 서버 URL 등
 - **시크릿**: 데이터베이스 패스워드, API 키 등 (Secrets Manager에서 관리)
+
+참고:
+- LLM 관련 URL은 ALB 경유 경로로 주입(`/llm/api/...`)
 
 ## 🔧 배포 방법
 
@@ -93,6 +100,11 @@ aws cloudformation describe-stacks --stack-name test-ecs-cluster
 aws cloudformation describe-stacks --stack-name test-ecs-cluster --query 'Stacks[0].Outputs'
 ```
 
+주요 출력값(Outputs):
+- `LoadBalancerURL`: `http://<ALB-DNS>` 형식의 URL
+- `LoadBalancerDNS`: ALB DNS 이름
+- `BackendServiceName`, `LLMServiceName`: 서비스명
+
 ## 🔍 모니터링
 
 ### CloudWatch 로그
@@ -104,6 +116,8 @@ aws cloudformation describe-stacks --stack-name test-ecs-cluster --query 'Stacks
 - **Backend**: `/actuator/health`
 - **LLM**: `/llm/api/health`
 - **Frontend**: `/`
+
+프런트엔드 타깃 그룹은 예시로 정적 타깃(IP) 1개가 설정되어 있습니다. 실제 환경에 맞게 대상 등록을 조정하세요.
 
 ## 📊 아키텍처
 

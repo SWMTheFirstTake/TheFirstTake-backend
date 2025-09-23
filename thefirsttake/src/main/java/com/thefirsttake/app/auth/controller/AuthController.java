@@ -5,6 +5,7 @@ import com.thefirsttake.app.auth.dto.UserInfo;
 import com.thefirsttake.app.auth.service.JwtService;
 import com.thefirsttake.app.auth.service.KakaoAuthService;
 import com.thefirsttake.app.common.response.CommonResponse;
+import com.thefirsttake.app.auth.service.RefreshTokenService;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.repository.UserEntityRepository;
 import io.micrometer.core.instrument.Counter;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -40,6 +42,7 @@ public class AuthController {
     
     private final KakaoAuthService kakaoAuthService;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
     private final UserEntityRepository userEntityRepository;
     private final Counter kakaoLoginSuccessCounter;
     private final Counter kakaoLoginFailureCounter;
@@ -157,6 +160,8 @@ public class AuthController {
             
             response.addCookie(accessTokenCookie);
             // 요구사항: 일단 refresh 토큰은 쿠키에 저장하지 않음
+            // 리프레시 토큰은 Redis에 저장 (TTL 7일)
+            refreshTokenService.saveRefreshToken(String.valueOf(userEntity.getId()), jwtRefreshToken, Duration.ofDays(7));
             
             log.info("JWT 토큰 설정 완료. 액세스 토큰 길이: {}, 리프레시 토큰 생성됨(쿠키 미저장)", 
                 jwtAccessToken.length());
@@ -269,8 +274,22 @@ public class AuthController {
         )
     })
     @PostMapping("/logout")
-    public ResponseEntity<CommonResponse> logout(HttpServletResponse response) {
+    public ResponseEntity<CommonResponse> logout(HttpServletRequest request, HttpServletResponse response) {
         try {
+            // 쿠키의 액세스 토큰에서 사용자 ID 추출 (만료 허용)
+            String accessToken = extractJwtFromCookies(request.getCookies());
+            if (accessToken != null) {
+                String userId = null;
+                try {
+                    userId = jwtService.getUserIdFromToken(accessToken);
+                } catch (Exception e) {
+                    userId = jwtService.getUserIdFromExpiredToken(accessToken);
+                }
+                if (userId != null) {
+                    // Redis의 리프레시 토큰 삭제
+                    refreshTokenService.deleteRefreshToken(userId);
+                }
+            }
             // 액세스 토큰 쿠키 삭제
             Cookie accessTokenCookie = new Cookie("access_token", null);
             accessTokenCookie.setMaxAge(0);
@@ -278,15 +297,6 @@ public class AuthController {
             accessTokenCookie.setHttpOnly(true);
             accessTokenCookie.setSecure(true);
             response.addCookie(accessTokenCookie);
-            
-            // 리프레시 토큰 쿠키 삭제
-            Cookie refreshTokenCookie = new Cookie("refresh_token", null);
-            refreshTokenCookie.setMaxAge(0);
-            refreshTokenCookie.setPath("/");
-            refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setSecure(true);
-            response.addCookie(refreshTokenCookie);
-            
             // 로그아웃 메트릭 증가
             logoutCounter.increment();
             
@@ -434,22 +444,39 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<CommonResponse> refreshToken(HttpServletRequest request, HttpServletResponse response) {
         try {
-            // 리프레시 토큰 추출 (현재 쿠키 미사용 정책)
-            String refreshToken = null; // 쿠키에서 추출하지 않음
-            
+            // 1) 액세스 토큰(만료 가능)에서 사용자 ID 추출
+            String accessToken = extractJwtFromCookies(request.getCookies());
+            if (accessToken == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(CommonResponse.fail("액세스 토큰이 없습니다"));
+            }
+            String userId;
+            try {
+                userId = jwtService.getUserIdFromToken(accessToken);
+            } catch (Exception e) {
+                userId = jwtService.getUserIdFromExpiredToken(accessToken);
+            }
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(CommonResponse.fail("사용자 식별 실패"));
+            }
+
+            // 2) Redis에서 리프레시 토큰 조회 및 검증
+            String refreshToken = refreshTokenService.getRefreshToken(userId);
             if (refreshToken == null || !jwtService.validateToken(refreshToken) || !jwtService.isRefreshToken(refreshToken)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(CommonResponse.fail("유효하지 않은 리프레시 토큰"));
+                    .body(CommonResponse.fail("리프레시 토큰이 유효하지 않습니다"));
             }
-            
-            // 사용자 ID 추출
-            String userId = jwtService.getUserIdFromToken(refreshToken);
-            
-            // 새로운 토큰 생성
+            String refreshUserId = jwtService.getUserIdFromToken(refreshToken);
+            if (!userId.equals(refreshUserId)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(CommonResponse.fail("토큰 소유자 불일치"));
+            }
+
+            // 3) 새로운 액세스 토큰 발급 (토큰 회전은 추후)
             String newAccessToken = jwtService.generateAccessToken(userId);
-            String newRefreshToken = jwtService.generateRefreshToken(userId);
-            
-            // 새로운 쿠키 설정 (refresh 토큰은 쿠키에 저장하지 않음)
+
+            // 4) 액세스 토큰 쿠키 설정
             Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
             accessTokenCookie.setHttpOnly(true);
             accessTokenCookie.setSecure(true);
@@ -457,7 +484,7 @@ public class AuthController {
             accessTokenCookie.setMaxAge(15 * 60); // 15분
             
             response.addCookie(accessTokenCookie);
-            // refresh 토큰은 서버 저장(추후 Redis) 예정, 쿠키 미저장
+            // refresh 토큰은 Redis 보관, 쿠키 미저장
             
             log.info("토큰 갱신 성공. 사용자 ID: {}", userId);
             return ResponseEntity.ok(CommonResponse.success("토큰 갱신 성공"));

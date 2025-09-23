@@ -106,4 +106,12 @@ public class JwtService {
     public boolean isRefreshToken(String token) {
         return "refresh".equals(getTokenType(token));
     }
+
+    public String getUserIdFromExpiredToken(String token) {
+        try {
+            return getUserIdFromToken(token);
+        } catch (ExpiredJwtException e) {
+            return e.getClaims().getSubject();
+        }
+    }
 }

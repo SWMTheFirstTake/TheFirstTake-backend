@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Test ECS Cluster with dual services - Complete version'
+Description: 'Test ECS Cluster with dual services - Complete version with ALB Access Logs'
 
 Parameters:
   ClusterName:
@@ -157,7 +157,7 @@ Resources:
       ImageScanningConfiguration:
         ScanOnPush: true
 
-  # Load Balancer
+  # Load Balancer with Access Logs
   TestApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -167,6 +167,19 @@ Resources:
       Subnets: !Ref SubnetIds
       SecurityGroups:
         - !Ref TestALBSecurityGroup
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: the-first-take-ecs-log
+        - Key: access_logs.s3.prefix
+          Value: alb-logs
+        - Key: deletion_protection.enabled
+          Value: false
+        - Key: idle_timeout.timeout_seconds
+          Value: 60
+        - Key: routing.http2.enabled
+          Value: true
       Tags:
         - Key: Environment
           Value: test
@@ -197,12 +210,12 @@ Resources:
       TargetType: ip
       HealthCheckPath: /llm/api/health
       HealthCheckProtocol: HTTP
-      HealthCheckIntervalSeconds: 300
-      HealthCheckTimeoutSeconds: 29
-      HealthyThresholdCount: 10
-      UnhealthyThresholdCount: 10
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
       Matcher:
-        HttpCode: "200-499"
+        HttpCode: "200"
 
   TestFrontendTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -228,7 +241,7 @@ Resources:
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref TestBackendTargetGroup
+          TargetGroupArn: !Ref TestFrontendTargetGroup
       LoadBalancerArn: !Ref TestApplicationLoadBalancer
       Port: 80
       Protocol: HTTP
@@ -281,13 +294,13 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      Cpu: 512
-      Memory: 1024
+      Cpu: 1024
+      Memory: 2048
       ExecutionRoleArn: !Ref TestECSTaskExecutionRole
       TaskRoleArn: !Ref TestECSTaskRole
       ContainerDefinitions:
         - Name: backend
-          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-backend:latest
+          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-backend@sha256:7a842089c04219288bea0fdf7b8ef881868317e68cad45dbda598c1d5e2cdc67
           PortMappings:
             - ContainerPort: 8000
               Protocol: tcp
@@ -355,13 +368,13 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      Cpu: 1024
-      Memory: 2048
+      Cpu: 512
+      Memory: 1024
       ExecutionRoleArn: !Ref TestECSTaskExecutionRole
       TaskRoleArn: !Ref TestECSTaskRole
       ContainerDefinitions:
         - Name: llm-server
-          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-llm:latest
+          Image: 023182678225.dkr.ecr.ap-northeast-2.amazonaws.com/thefirsttake-llm@sha256:717a228c58e660908aab7c57c1a0cb49d7d96cc07bba0be4fd90a4c21c17d2aa
           PortMappings:
             - ContainerPort: 6020
               Protocol: tcp
@@ -457,6 +470,7 @@ Resources:
         - Key: Service
           Value: llm
     DependsOn:
+      - TestALBListener
       - TestLLMListenerRule
 
 Outputs:
