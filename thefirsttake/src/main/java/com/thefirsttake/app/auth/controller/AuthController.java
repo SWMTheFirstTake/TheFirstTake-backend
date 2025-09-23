@@ -446,7 +446,7 @@ public class AuthController {
             String userId = jwtService.getUserIdFromToken(refreshToken);
             
             // 새로운 토큰 생성
-            String newAccessToken = jwtService.generateAccessToken(userId, "갱신된사용자");
+            String newAccessToken = jwtService.generateAccessToken(userId);
             String newRefreshToken = jwtService.generateRefreshToken(userId);
             
             // 새로운 쿠키 설정 (refresh 토큰은 쿠키에 저장하지 않음)
