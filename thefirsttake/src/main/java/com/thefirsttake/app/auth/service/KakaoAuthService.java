@@ -40,6 +40,7 @@ public class KakaoAuthService {
         params.add("client_id", clientId);
         params.add("client_secret", clientSecret);
         params.add("redirect_uri", redirectUri);
+        System.out.println("redirectUri: " + redirectUri);
         params.add("code", authorizationCode);
         
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
