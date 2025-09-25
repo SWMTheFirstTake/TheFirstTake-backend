@@ -31,7 +31,7 @@ public class ProductSearchService {
     private String aiServerPort;
     
     private String getSearchApiUrl() {
-        return String.format("http://%s:%s/api/v1/search/", aiServerHost, aiServerPort);
+        return String.format("http://%s:%s/search/", aiServerHost, aiServerPort);
     }
 
     /**
