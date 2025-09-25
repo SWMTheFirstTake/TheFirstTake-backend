@@ -48,7 +48,7 @@ jpa:
             user-name-attribute: id
 jwt:
   secret: ${JWT_SECRET:X9p$eTqN7#vF3@LmPz1!tUcRg*YkWqZ0oAsJdLxCvBnMhQeRfTgYhUjIkOlPnMbVcXsZaSdFgHiJkL11111}
-  expiration: 604800000  # 7일 (밀리초)
+  expiration: 900000  # 15분 (밀리초)
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}

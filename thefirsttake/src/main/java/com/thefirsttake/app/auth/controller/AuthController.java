@@ -151,12 +151,12 @@ public class AuthController {
             log.info("=============================");
             
             // 4. HttpOnly 쿠키로 토큰 설정
-            // 액세스 토큰 쿠키 (15분)
+            // 액세스 토큰 쿠키 (8시간)
             Cookie accessTokenCookie = new Cookie("access_token", jwtAccessToken);
             accessTokenCookie.setHttpOnly(true);
             accessTokenCookie.setSecure(true);
             accessTokenCookie.setPath("/");
-            accessTokenCookie.setMaxAge(15 * 60); // 15분
+            accessTokenCookie.setMaxAge(60 * 60 * 8); // 1시간
             
             response.addCookie(accessTokenCookie);
             // 요구사항: 일단 refresh 토큰은 쿠키에 저장하지 않음
@@ -483,7 +483,7 @@ public class AuthController {
             accessTokenCookie.setHttpOnly(true);
             accessTokenCookie.setSecure(true);
             accessTokenCookie.setPath("/");
-            accessTokenCookie.setMaxAge(15 * 60); // 15분
+            accessTokenCookie.setMaxAge(60 * 60); // 1시간
             
             response.addCookie(accessTokenCookie);
             // refresh 토큰은 Redis 보관, 쿠키 미저장
