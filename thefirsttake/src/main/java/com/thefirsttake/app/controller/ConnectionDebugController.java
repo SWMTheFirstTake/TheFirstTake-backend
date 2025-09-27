@@ -1,5 +1,6 @@
 package com.thefirsttake.app.controller;
 
+import com.thefirsttake.app.service.ConnectionPoolMonitoringService;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,8 @@ public class ConnectionDebugController {
     
     @Autowired
     private DataSource dataSource;
+    
+    private final ConnectionPoolMonitoringService connectionPoolMonitoringService;
     
     /**
      * 현재 커넥션 풀 상태 확인
@@ -71,6 +74,38 @@ public class ConnectionDebugController {
             log.error("커넥션 정보 조회 실패", e);
             Map<String, Object> error = new HashMap<>();
             error.put("error", "Failed to get connection info: " + e.getMessage());
+            return error;
+        }
+    }
+    
+    /**
+     * 커넥션 풀 상태 (모니터링 서비스 사용)
+     */
+    @GetMapping("/connections/status")
+    public Map<String, Object> getConnectionPoolStatus() {
+        try {
+            ConnectionPoolMonitoringService.ConnectionPoolStatus status = 
+                    connectionPoolMonitoringService.getConnectionPoolStatus();
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("active_connections", status.getActiveConnections());
+            result.put("idle_connections", status.getIdleConnections());
+            result.put("total_connections", status.getTotalConnections());
+            result.put("waiting_threads", status.getWaitingThreads());
+            result.put("max_pool_size", status.getMaxPoolSize());
+            result.put("utilization_rate", String.format("%.2f", status.getUtilizationRate() * 100) + "%");
+            result.put("is_healthy", status.isHealthy());
+            result.put("is_warning", status.isWarning());
+            result.put("is_critical", status.isCritical());
+            result.put("status", status.isCritical() ? "CRITICAL" : 
+                              status.isWarning() ? "WARNING" : "OK");
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("커넥션 풀 상태 조회 실패", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to get connection pool status: " + e.getMessage());
             return error;
         }
     }

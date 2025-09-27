@@ -18,6 +18,13 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
 jpa:
   hibernate:
     ddl-auto: update   # create, create-drop, update, none ? ??
@@ -33,8 +40,8 @@ jpa:
             client-id: "client-id"
             client-secret: "client-secret"
             # redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
-            # redirect-uri: "https://the-second-take.com/api/auth/callback/kakao"  # 기존 프로덕션 값 (보존)
-            redirect-uri: "https://the-first-take.com/api/auth/callback/kakao"
+            redirect-uri: "https://the-second-take.com/api/auth/callback/kakao"  # 기존 프로덕션 값 (보존)
+            # redirect-uri: "https://the-first-take.com/api/auth/callback/kakao"
             # redirect-uri: "http://localhost:8000/api/auth/kakao/callback"
 #            redirect-uri: "http://localhost:3000/api/auth/callback/kakao"
 #            redirect-uri: "http://localhost:5500/kakao-callback.html"
@@ -54,8 +61,8 @@ jwt:
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
   client-secret: ${KAKAO_CLIENT_SECRET}
-  # redirect-uri: https://the-second-take.com/api/auth/kakao/callback
-  redirect-uri: https://the-first-take.com/api/auth/kakao/callback
+  redirect-uri: https://the-second-take.com/api/auth/kakao/callback
+  # redirect-uri: https://the-first-take.com/api/auth/kakao/callback
   # redirect-uri: http://localhost:8000/api/auth/kakao/callback
 llm:
   server:
@@ -103,6 +110,12 @@ management:
     export:
       prometheus:
         enabled: true
+    distribution:
+      percentiles-histogram:
+        hikaricp.connections: true
+        hikaricp.connections.active: true
+        hikaricp.connections.idle: true
+        hikaricp.connections.pending: true
     distribution:
       percentiles-histogram:
         jvm.memory.used: true

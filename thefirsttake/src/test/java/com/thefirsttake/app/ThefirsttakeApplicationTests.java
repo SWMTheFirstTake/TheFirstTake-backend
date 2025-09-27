@@ -12,4 +12,9 @@ class ThefirsttakeApplicationTests {
 	void contextLoads() {
 	}
 
+	@Test
+	void sanityCheck() {
+		org.junit.jupiter.api.Assertions.assertEquals(4, 2 + 2);
+	}
+
 }

@@ -285,4 +285,121 @@ public class MetricsConfig {
                 .register(meterRegistry);
     }
     
+    // ===== DB 커넥션 풀 메트릭 =====
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolActiveGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_active", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        return hikariDS.getHikariPoolMXBean().getActiveConnections();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .description("Number of active database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolIdleGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_idle", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        return hikariDS.getHikariPoolMXBean().getIdleConnections();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .description("Number of idle database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolTotalGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_total", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        return hikariDS.getHikariPoolMXBean().getTotalConnections();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .description("Total number of database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolWaitingGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_waiting", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        return hikariDS.getHikariPoolMXBean().getThreadsAwaitingConnection();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .description("Number of threads waiting for database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolMaxGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_max", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        return hikariDS.getMaximumPoolSize();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .description("Maximum number of database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public io.micrometer.core.instrument.Gauge dbConnectionPoolUtilizationGauge(MeterRegistry meterRegistry, javax.sql.DataSource dataSource) {
+        return io.micrometer.core.instrument.Gauge.builder("db_connection_pool_utilization_ratio", dataSource, ds -> {
+                    try {
+                        com.zaxxer.hikari.HikariDataSource hikariDS = (com.zaxxer.hikari.HikariDataSource) ds;
+                        com.zaxxer.hikari.HikariPoolMXBean poolBean = hikariDS.getHikariPoolMXBean();
+                        int active = poolBean.getActiveConnections();
+                        int total = poolBean.getTotalConnections();
+                        return total > 0 ? (double) active / total : 0.0;
+                    } catch (Exception e) {
+                        return 0.0;
+                    }
+                })
+                .description("Database connection pool utilization ratio (0.0 to 1.0)")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter dbConnectionTimeoutCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("db_connection_timeouts_total")
+                .description("Total number of database connection timeouts")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Counter dbConnectionLeakCounter(MeterRegistry meterRegistry) {
+        return Counter.builder("db_connection_leaks_total")
+                .description("Total number of database connection leaks detected")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Timer dbConnectionAcquisitionTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("db_connection_acquisition_duration")
+                .description("Time taken to acquire database connections")
+                .register(meterRegistry);
+    }
+    
+    @Bean
+    public Timer dbTransactionDurationTimer(MeterRegistry meterRegistry) {
+        return Timer.builder("db_transaction_duration")
+                .description("Database transaction duration")
+                .register(meterRegistry);
+    }
+    
 }
