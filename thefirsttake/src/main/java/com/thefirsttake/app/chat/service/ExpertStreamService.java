@@ -108,9 +108,9 @@ public class ExpertStreamService {
             if (!cancelled.get()) {
                 products = productSearchStreamService.searchAndCacheProducts(finalText.toString());
                 
-                // AI 응답 저장
+                // AI 응답을 캐시에 임시 저장 (배치 저장을 위해)
                 if (!products.isEmpty()) {
-                    messageStorageService.saveAIResponse(sessionId, expertType, finalText.toString(), products, roomId);
+                    messageStorageService.saveAIResponseToCache(sessionId, expertType, finalText.toString(), products, roomId);
                 }
             }
             

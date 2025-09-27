@@ -5,8 +5,8 @@ import com.zaxxer.hikari.HikariPoolMXBean;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +20,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - 경고 및 알림 처리
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ConnectionPoolMonitoringService {
     
@@ -32,6 +31,21 @@ public class ConnectionPoolMonitoringService {
     private final Counter connectionLeakCounter;
     private final Timer connectionAcquisitionTimer;
     private final Timer transactionDurationTimer;
+    
+    public ConnectionPoolMonitoringService(
+            DataSource dataSource,
+            MeterRegistry meterRegistry,
+            @Qualifier("dbConnectionTimeoutCounter") Counter connectionTimeoutCounter,
+            @Qualifier("dbConnectionLeakCounter") Counter connectionLeakCounter,
+            @Qualifier("dbConnectionAcquisitionTimer") Timer connectionAcquisitionTimer,
+            @Qualifier("dbTransactionDurationTimer") Timer transactionDurationTimer) {
+        this.dataSource = dataSource;
+        this.meterRegistry = meterRegistry;
+        this.connectionTimeoutCounter = connectionTimeoutCounter;
+        this.connectionLeakCounter = connectionLeakCounter;
+        this.connectionAcquisitionTimer = connectionAcquisitionTimer;
+        this.transactionDurationTimer = transactionDurationTimer;
+    }
     
     // 커넥션 풀 상태 추적
     private final AtomicInteger highUtilizationCount = new AtomicInteger(0);

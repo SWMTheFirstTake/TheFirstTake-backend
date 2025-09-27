@@ -116,8 +116,6 @@ management:
         hikaricp.connections.active: true
         hikaricp.connections.idle: true
         hikaricp.connections.pending: true
-    distribution:
-      percentiles-histogram:
         jvm.memory.used: true
         jvm.gc.pause: true
         sse.api.total.response.duration: true

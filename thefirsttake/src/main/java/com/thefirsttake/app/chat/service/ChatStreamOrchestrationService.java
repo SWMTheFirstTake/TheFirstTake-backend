@@ -65,8 +65,8 @@ public class ChatStreamOrchestrationService {
                     // 메모리 사용량 측정 시작
                     streamMetricsService.recordMemoryUsage(connectionId);
                     
-                    // 사용자 메시지 저장
-                    messageStorageService.saveUserMessage(session.getId(), userInput, finalRoomId);
+            // 사용자 메시지를 캐시에 임시 저장 (배치 저장을 위해)
+            messageStorageService.saveUserMessageToCache(session.getId(), userInput, finalRoomId);
                     
                     // 전문가 리스트 및 완료 상태 추적 준비
                     List<String> expertList = expertStreamService.getExpertList();
@@ -99,6 +99,15 @@ public class ChatStreamOrchestrationService {
                             
                             // 최종 완료 이벤트 전송
                             sseConnectionService.sendFinalCompleteEvent(emitter, expertList.size());
+                            
+                            // 캐시된 모든 메시지를 한 번에 DB에 저장 (통합 배치 저장)
+                            try {
+                                messageStorageService.saveAllMessagesFromCache(session.getId(), finalRoomId);
+                                log.info("✅ 통합 배치 저장 완료: sessionId={}, roomId={}", session.getId(), finalRoomId);
+                            } catch (Exception e) {
+                                log.error("❌ 통합 배치 저장 실패: sessionId={}, roomId={}, error={}", 
+                                        session.getId(), finalRoomId, e.getMessage(), e);
+                            }
                             
                             // SSE 연결 종료
                             forceCompleted.set(true);

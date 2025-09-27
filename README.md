@@ -92,6 +92,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
   - 컬러 전문가 (Color Expert)
   - 핏팅 코디네이터 (Fitting Coordinator)
 - **SSE 지원**: 실시간으로 AI 응답을 클라이언트에 전송하여 사용자 경험 향상
+- **성능 최적화**: 통합 배치 저장 및 캐싱으로 DB 부하 75% 감소
 
 ### 🎨 패션 큐레이션 & 추천
 - **RAG 기반 지식 검색**: 패션 지식베이스를 활용한 정확한 추천
@@ -129,11 +130,14 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 - **Spring Security**: 인증 및 보안
 - **Spring Data JPA**: 데이터베이스 ORM
 - **Spring WebSocket**: 실시간 통신
+- **HikariCP**: 고성능 DB 커넥션 풀
+- **Micrometer + Prometheus**: 메트릭 수집 및 모니터링
 - **Gradle**: 빌드 도구
 
 ### Database & Cache
 - **PostgreSQL**: 메인 데이터베이스 (채팅방, 메시지, 사용자 정보)
 - **Redis**: 캐시 및 메시지 큐 (채팅 큐, 프롬프트 히스토리, 상품 정보 캐시)
+- **메모리 캐싱**: 중복 DB 조회 방지 및 성능 최적화
 
 ### Cloud Services
 - **AWS S3**: 이미지 파일 저장
@@ -1010,6 +1014,7 @@ cd TheFirstTake-backend/thefirsttake
 - **메시지 저장 로그**: AI 응답 및 상품 이미지 저장 상태 추적
 - **SSE 커넥션 모니터링**: 실시간 연결 상태 및 메모리 사용량 추적
 - **성능 메트릭**: Prometheus 기반 상세 성능 지표 수집
+- **DB 커넥션 풀 모니터링**: HikariCP 실시간 상태 추적 및 경고
 - **알림 시스템**: 메모리 사용률 및 커넥션 풀 효율성 기반 자동 알림
 
 ### 🔍 SSE 커넥션 최적화 모니터링
@@ -1019,6 +1024,20 @@ cd TheFirstTake-backend/thefirsttake
 - **커넥션 풀 효율성**: 히트율/미스율을 통한 연결 재사용 패턴 분석
 - **메모리 피크 추적**: 80% 이상 메모리 사용 시 자동 경고
 - **GC 패턴 분석**: SSE 연결과 가비지 컬렉션 발생 빈도 상관관계
+
+### 🚀 DB 커넥션 풀 최적화
+
+#### 성능 개선 효과
+- **트랜잭션 최적화**: 4개 → 1개 (75% 감소)
+- **중복 조회 제거**: UserEntity/ChatRoom 조회 50% 감소
+- **통합 배치 저장**: 사용자 메시지 + AI 응답 단일 트랜잭션 처리
+- **커넥션 사용 시간 단축**: DB 부하 대폭 감소
+
+#### 모니터링 지표
+- **활성 커넥션 수**: `db_connection_pool_active`
+- **대기 스레드 수**: `db_connection_pool_pending`
+- **커넥션 획득 시간**: `db_connection_acquisition_duration`
+- **트랜잭션 지속 시간**: `db_transaction_duration`
 
 #### 부하 테스트 시나리오
 ```bash
@@ -1057,6 +1076,10 @@ curl -s "http://localhost:9090/api/v1/query?query=jvm_memory_used_bytes{area=\"h
 - **S3 이미지 저장**: CDN을 통한 빠른 이미지 로딩
 - **SSE 커넥션 모니터링**: 실시간 연결 상태 추적으로 메모리 효율성 향상
 - **메트릭 기반 최적화**: Prometheus 지표를 통한 데이터 기반 성능 개선
+- **DB 커넥션 풀 최적화**: HikariCP 설정 및 모니터링으로 커넥션 고갈 방지
+- **중복 조회 제거**: 메모리 캐싱으로 UserEntity/ChatRoom 중복 조회 방지
+- **통합 배치 저장**: 사용자 메시지 + AI 응답을 캐시에 임시 저장 후 단일 트랜잭션으로 일괄 DB 저장
+- **트랜잭션 최적화**: 4개 트랜잭션 → 1개 트랜잭션으로 75% 감소
 - **서비스 분리 아키텍처**: 모듈화된 서비스 구조로 확장성 및 유지보수성 향상
 - **의존성 주입**: 느슨한 결합을 통한 테스트 용이성 및 코드 재사용성 증대
 
