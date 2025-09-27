@@ -376,7 +376,7 @@ public class MetricsConfig {
     
     @Bean
     public Counter dbConnectionTimeoutCounter(MeterRegistry meterRegistry) {
-        return Counter.builder("db_connection_timeouts_total")
+        return Counter.builder("db_connection_timeout_counter")
                 .description("Total number of database connection timeouts")
                 .register(meterRegistry);
     }
