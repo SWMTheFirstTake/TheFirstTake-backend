@@ -382,6 +382,9 @@ public class MetricsConfig {
         Gauge.builder("db_connection_timeout_total", gauge, AtomicLong::get)
                 .description("Total number of database connection timeouts")
                 .register(meterRegistry);
+        // 메트릭이 프로메테우스에 노출되도록 초기화 - 1로 시작해서 1을 빼서 0으로 만듦
+        gauge.set(1);
+        gauge.set(0);
         return gauge;
     }
     
