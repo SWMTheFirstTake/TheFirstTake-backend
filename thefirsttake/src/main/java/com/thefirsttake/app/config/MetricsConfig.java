@@ -376,9 +376,12 @@ public class MetricsConfig {
     
     @Bean
     public Counter dbConnectionTimeoutCounter(MeterRegistry meterRegistry) {
-        return Counter.builder("db_connection_timeout_counter")
+        Counter counter = Counter.builder("db_connection_timeout_counter")
                 .description("Total number of database connection timeouts")
                 .register(meterRegistry);
+        // 메트릭이 프로메테우스에 노출되도록 초기화
+        counter.increment(0);
+        return counter;
     }
     
     @Bean
