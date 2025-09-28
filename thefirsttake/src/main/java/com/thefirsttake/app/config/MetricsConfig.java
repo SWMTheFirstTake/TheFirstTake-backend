@@ -379,8 +379,9 @@ public class MetricsConfig {
         Counter counter = Counter.builder("db_connection_timeout_counter")
                 .description("Total number of database connection timeouts")
                 .register(meterRegistry);
-        // 메트릭이 프로메테우스에 노출되도록 초기화
-        counter.increment(0);
+        // 메트릭이 프로메테우스에 노출되도록 초기화 - 0.001로 시작해서 0.001을 빼서 0으로 만듦
+        counter.increment(0.001);
+        counter.increment(-0.001);
         return counter;
     }
     
