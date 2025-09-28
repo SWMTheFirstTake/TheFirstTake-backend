@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * DB 커넥션 풀 모니터링 서비스
@@ -27,7 +28,7 @@ public class ConnectionPoolMonitoringService {
     private final MeterRegistry meterRegistry;
     
     // 메트릭 카운터들
-    private final Counter connectionTimeoutCounter;
+    private final AtomicLong connectionTimeoutGauge;
     private final Counter connectionLeakCounter;
     private final Timer connectionAcquisitionTimer;
     private final Timer transactionDurationTimer;
@@ -35,13 +36,13 @@ public class ConnectionPoolMonitoringService {
     public ConnectionPoolMonitoringService(
             DataSource dataSource,
             MeterRegistry meterRegistry,
-            @Qualifier("dbConnectionTimeoutCounter") Counter connectionTimeoutCounter,
+            @Qualifier("dbConnectionTimeoutGauge") AtomicLong connectionTimeoutGauge,
             @Qualifier("dbConnectionLeakCounter") Counter connectionLeakCounter,
             @Qualifier("dbConnectionAcquisitionTimer") Timer connectionAcquisitionTimer,
             @Qualifier("dbTransactionDurationTimer") Timer transactionDurationTimer) {
         this.dataSource = dataSource;
         this.meterRegistry = meterRegistry;
-        this.connectionTimeoutCounter = connectionTimeoutCounter;
+        this.connectionTimeoutGauge = connectionTimeoutGauge;
         this.connectionLeakCounter = connectionLeakCounter;
         this.connectionAcquisitionTimer = connectionAcquisitionTimer;
         this.transactionDurationTimer = transactionDurationTimer;
@@ -118,7 +119,7 @@ public class ConnectionPoolMonitoringService {
      * 커넥션 타임아웃 발생 시 호출
      */
     public void recordConnectionTimeout() {
-        connectionTimeoutCounter.increment();
+        connectionTimeoutGauge.incrementAndGet();
         log.error("❌ DB 커넥션 타임아웃 발생");
     }
     

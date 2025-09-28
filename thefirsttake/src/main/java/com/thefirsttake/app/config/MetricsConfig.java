@@ -2,8 +2,10 @@ package com.thefirsttake.app.config;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -375,14 +377,12 @@ public class MetricsConfig {
     }
     
     @Bean
-    public Counter dbConnectionTimeoutCounter(MeterRegistry meterRegistry) {
-        Counter counter = Counter.builder("db_connection_timeout_counter")
+    public AtomicLong dbConnectionTimeoutGauge(MeterRegistry meterRegistry) {
+        AtomicLong gauge = new AtomicLong(0);
+        Gauge.builder("db_connection_timeout_total", gauge, AtomicLong::get)
                 .description("Total number of database connection timeouts")
                 .register(meterRegistry);
-        // 메트릭이 프로메테우스에 노출되도록 초기화 - 0.001로 시작해서 0.001을 빼서 0으로 만듦
-        counter.increment(0.001);
-        counter.increment(-0.001);
-        return counter;
+        return gauge;
     }
     
     @Bean
