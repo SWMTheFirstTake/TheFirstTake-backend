@@ -909,216 +909,216 @@ public class ChatController {
     }
 
 
-    @Operation(
-            summary = "채팅 메시지 스트리밍 (SSE) - 통합 스트림 API",
-            description = """
-                    사용자 입력을 기반으로 채팅방에서 실시간 AI 응답을 스트리밍으로 전달합니다.
-                    room_id가 있으면 기존 방을 사용하고, 없으면 새 방을 자동 생성합니다.
+//     @Operation(
+//             summary = "채팅 메시지 스트리밍 (SSE) - 통합 스트림 API",
+//             description = """
+//                     사용자 입력을 기반으로 채팅방에서 실시간 AI 응답을 스트리밍으로 전달합니다.
+//                     room_id가 있으면 기존 방을 사용하고, 없으면 새 방을 자동 생성합니다.
                     
-                    **주요 특징:**
-                    - 유연한 방 관리: room_id 파라미터로 기존 방 사용 또는 새 방 생성
-                    - 실시간 스트리밍: AI 응답이 생성되는 대로 즉시 전송
-                    - 다중 전문가: 3명의 전문가가 순차적으로 응답 생성
-                    - 상품 추천: 완료 시 관련 상품 이미지와 정보 제공
-                    - 자동 저장: 사용자 메시지와 AI 응답을 PostgreSQL에 자동 저장
-                    - 명시적 종료: 모든 전문가 완료 후 SSE 연결 자동 종료
+//                     **주요 특징:**
+//                     - 유연한 방 관리: room_id 파라미터로 기존 방 사용 또는 새 방 생성
+//                     - 실시간 스트리밍: AI 응답이 생성되는 대로 즉시 전송
+//                     - 다중 전문가: 3명의 전문가가 순차적으로 응답 생성
+//                     - 상품 추천: 완료 시 관련 상품 이미지와 정보 제공
+//                     - 자동 저장: 사용자 메시지와 AI 응답을 PostgreSQL에 자동 저장
+//                     - 명시적 종료: 모든 전문가 완료 후 SSE 연결 자동 종료
                     
-                    **이벤트 타입:**
-                    - `room`: 새 방 생성 시 방 정보 전송
-                    - `connect`: SSE 연결 성공
-                    - `content`: AI 응답 실시간 스트리밍 (각 전문가별)
-                    - `complete`: 개별 전문가 완료 (각 전문가별)
-                    - `final_complete`: 모든 전문가 완료 및 연결 종료
-                    - `error`: 에러 발생 시
+//                     **이벤트 타입:**
+//                     - `room`: 새 방 생성 시 방 정보 전송
+//                     - `connect`: SSE 연결 성공
+//                     - `content`: AI 응답 실시간 스트리밍 (각 전문가별)
+//                     - `complete`: 개별 전문가 완료 (각 전문가별)
+//                     - `final_complete`: 모든 전문가 완료 및 연결 종료
+//                     - `error`: 에러 발생 시
                     
-                    **사용 예시:**
-                    ```javascript
-                    // 기존 방 사용
-                    const eventSource1 = new EventSource('/api/chat/rooms/messages/stream?room_id=123&user_input=안녕하세요');
+//                     **사용 예시:**
+//                     ```javascript
+//                     // 기존 방 사용
+//                     const eventSource1 = new EventSource('/api/chat/rooms/messages/stream?room_id=123&user_input=안녕하세요');
                     
-                    // 새 방 생성
-                    const eventSource2 = new EventSource('/api/chat/rooms/messages/stream?user_input=안녕하세요');
+//                     // 새 방 생성
+//                     const eventSource2 = new EventSource('/api/chat/rooms/messages/stream?user_input=안녕하세요');
                     
-                    eventSource.addEventListener('final_complete', (event) => {
-                        console.log('모든 전문가 완료, 연결 종료');
-                        eventSource.close();
-                    });
-                    ```
-                    """,
-            parameters = {
-                    @Parameter(
-                            name = "room_id", 
-                            description = "기존 방 ID (선택사항 - 없으면 자동 생성)", 
-                            required = false, 
-                            schema = @Schema(type = "integer", format = "int64"),
-                            example = "259"
-                    ),
-                    @Parameter(
-                            name = "user_input", 
-                            description = "사용자 입력 텍스트 (패션 상담 요청)", 
-                            required = true, 
-                            schema = @Schema(type = "string"),
-                            example = "소개팅 가는데 입을 옷 추천해줘"
-                    ),
-                    @Parameter(
-                            name = "user_profile", 
-                            description = "사용자 프로필 정보 (선택사항)", 
-                            required = false, 
-                            schema = @Schema(type = "string"),
-                            example = "20대 남성, 키 175cm, 체형 보통"
-                    )
-            },
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200", 
-                            description = "SSE 연결 성공 - 실시간 스트림 시작", 
-                            content = @Content(
-                                    mediaType = "text/event-stream",
-                                    examples = {
-                                            @ExampleObject(
-                                                    name = "방 정보 전송",
-                                                    summary = "자동 생성된 방 정보",
-                                                    value = """
-                                                    event: room
-                                                    data: {"status":"success","message":"요청 성공","data":{"room_id":259,"type":"room","timestamp":1757045016039}}
+//                     eventSource.addEventListener('final_complete', (event) => {
+//                         console.log('모든 전문가 완료, 연결 종료');
+//                         eventSource.close();
+//                     });
+//                     ```
+//                     """,
+//             parameters = {
+//                     @Parameter(
+//                             name = "room_id", 
+//                             description = "기존 방 ID (선택사항 - 없으면 자동 생성)", 
+//                             required = false, 
+//                             schema = @Schema(type = "integer", format = "int64"),
+//                             example = "259"
+//                     ),
+//                     @Parameter(
+//                             name = "user_input", 
+//                             description = "사용자 입력 텍스트 (패션 상담 요청)", 
+//                             required = true, 
+//                             schema = @Schema(type = "string"),
+//                             example = "소개팅 가는데 입을 옷 추천해줘"
+//                     ),
+//                     @Parameter(
+//                             name = "user_profile", 
+//                             description = "사용자 프로필 정보 (선택사항)", 
+//                             required = false, 
+//                             schema = @Schema(type = "string"),
+//                             example = "20대 남성, 키 175cm, 체형 보통"
+//                     )
+//             },
+//             responses = {
+//                     @ApiResponse(
+//                             responseCode = "200", 
+//                             description = "SSE 연결 성공 - 실시간 스트림 시작", 
+//                             content = @Content(
+//                                     mediaType = "text/event-stream",
+//                                     examples = {
+//                                             @ExampleObject(
+//                                                     name = "방 정보 전송",
+//                                                     summary = "자동 생성된 방 정보",
+//                                                     value = """
+//                                                     event: room
+//                                                     data: {"status":"success","message":"요청 성공","data":{"room_id":259,"type":"room","timestamp":1757045016039}}
                                                     
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "연결 성공",
-                                                    summary = "SSE 연결이 성공적으로 설정됨",
-                                                    value = """
-                                                    event: connect
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1757045016039}}
+//                                                     """
+//                                             ),
+//                                             @ExampleObject(
+//                                                     name = "연결 성공",
+//                                                     summary = "SSE 연결이 성공적으로 설정됨",
+//                                                     value = """
+//                                                     event: connect
+//                                                     data: {"status":"success","message":"요청 성공","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1757045016039}}
                                                     
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "AI 응답 스트리밍",
-                                                    summary = "실시간 AI 응답 메시지",
-                                                    value = """
-                                                    event: content
-                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","type":"content","timestamp":1757045028619}}
+//                                                     """
+//                                             ),
+//                                             @ExampleObject(
+//                                                     name = "AI 응답 스트리밍",
+//                                                     summary = "실시간 AI 응답 메시지",
+//                                                     value = """
+//                                                     event: content
+//                                                     data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"소개팅에 어울리는 스타일을 분석해보겠습니다...","type":"content","timestamp":1757045028619}}
                                                     
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "완료 및 상품 추천",
-                                                    summary = "최종 완료 메시지와 추천 상품",
-                                                    value = """
-                                                    event: complete
-                                                    data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
+//                                                     """
+//                                             ),
+//                                             @ExampleObject(
+//                                                     name = "완료 및 상품 추천",
+//                                                     summary = "최종 완료 메시지와 추천 상품",
+//                                                     value = """
+//                                                     event: complete
+//                                                     data: {"status":"success","message":"요청 성공","data":{"agent_id":"style_analyst","agent_name":"스타일 분석가","message":"브라운 린넨 반팔 셔츠에 그레이 와이드 슬랙스가 잘 어울려...","products":[{"product_url":"https://sw-fashion-image-data.s3.amazonaws.com/TOP/1002/4989731/segment/4989731_seg_001.jpg","product_id":"4989731"}]}}
                                                     
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "모든 전문가 완료",
-                                                    summary = "final_complete 이벤트 예시",
-                                                    value = """
-                                                    event: final_complete
-                                                    data: {"status":"success","message":"요청 성공","data":{"message":"모든 전문가 응답이 완료되었습니다.","total_experts":3,"timestamp":1757045039999}}
+//                                                     """
+//                                             ),
+//                                             @ExampleObject(
+//                                                     name = "모든 전문가 완료",
+//                                                     summary = "final_complete 이벤트 예시",
+//                                                     value = """
+//                                                     event: final_complete
+//                                                     data: {"status":"success","message":"요청 성공","data":{"message":"모든 전문가 응답이 완료되었습니다.","total_experts":3,"timestamp":1757045039999}}
                                                     
-                                                    """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "에러 발생",
-                                                    summary = "처리 중 오류 발생",
-                                                    value = """
-                                                    event: error
-                                                    data: {"status":"fail","message":"스트림 처리 오류: [에러 메시지]","data":null}
+//                                                     """
+//                                             ),
+//                                             @ExampleObject(
+//                                                     name = "에러 발생",
+//                                                     summary = "처리 중 오류 발생",
+//                                                     value = """
+//                                                     event: error
+//                                                     data: {"status":"fail","message":"스트림 처리 오류: [에러 메시지]","data":null}
                                                     
-                                                    """
-                                            )
-                                    }
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "400", 
-                            description = "요청 파라미터 오류 (user_input 누락 등)",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "파라미터 오류",
-                                            summary = "필수 파라미터가 누락된 경우",
-                                            value = """
-                                            {
-                                              "status": "fail",
-                                              "message": "user_input은 필수 파라미터입니다.",
-                                              "data": null
-                                            }
-                                            """
-                                    )
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500", 
-                            description = "서버 내부 오류 (방 생성 실패, 외부 API 호출 실패, DB 저장 실패 등)",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    examples = @ExampleObject(
-                                            name = "서버 오류",
-                                            summary = "예상치 못한 서버 오류 발생",
-                                            value = """
-                                            {
-                                              "status": "fail",
-                                              "message": "스트림 처리 중 오류가 발생했습니다: [오류 메시지]",
-                                              "data": null
-                                            }
-                                            """
-                                    )
-                            )
-                    )
-            }
-    )
-    @GetMapping("/rooms/messages/new-stream")
-    public SseEmitter streamChatMessage(
-            @RequestParam(value = "room_id", required = false) Long roomId,
-            @RequestParam("user_input") String userInput,
-            @RequestParam(value = "user_profile", required = false) String userProfile,
-            HttpServletRequest httpRequest
-    ) {
-        // 1. 세션 처리
-        HttpSession session = httpRequest.getSession(false);
-        if (session == null) {
-            session = httpRequest.getSession(true);
-        }
+//                                                     """
+//                                             )
+//                                     }
+//                             )
+//                     ),
+//                     @ApiResponse(
+//                             responseCode = "400", 
+//                             description = "요청 파라미터 오류 (user_input 누락 등)",
+//                             content = @Content(
+//                                     mediaType = "application/json",
+//                                     examples = @ExampleObject(
+//                                             name = "파라미터 오류",
+//                                             summary = "필수 파라미터가 누락된 경우",
+//                                             value = """
+//                                             {
+//                                               "status": "fail",
+//                                               "message": "user_input은 필수 파라미터입니다.",
+//                                               "data": null
+//                                             }
+//                                             """
+//                                     )
+//                             )
+//                     ),
+//                     @ApiResponse(
+//                             responseCode = "500", 
+//                             description = "서버 내부 오류 (방 생성 실패, 외부 API 호출 실패, DB 저장 실패 등)",
+//                             content = @Content(
+//                                     mediaType = "application/json",
+//                                     examples = @ExampleObject(
+//                                             name = "서버 오류",
+//                                             summary = "예상치 못한 서버 오류 발생",
+//                                             value = """
+//                                             {
+//                                               "status": "fail",
+//                                               "message": "스트림 처리 중 오류가 발생했습니다: [오류 메시지]",
+//                                               "data": null
+//                                             }
+//                                             """
+//                                     )
+//                             )
+//                     )
+//             }
+//     )
+//     @GetMapping("/rooms/messages/stream")
+//     public SseEmitter streamChatMessage(
+//             @RequestParam(value = "room_id", required = false) Long roomId,
+//             @RequestParam("user_input") String userInput,
+//             @RequestParam(value = "user_profile", required = false) String userProfile,
+//             HttpServletRequest httpRequest
+//     ) {
+//         // 1. 세션 처리
+//         HttpSession session = httpRequest.getSession(false);
+//         if (session == null) {
+//             session = httpRequest.getSession(true);
+//         }
 
-        // 2. 방 ID 처리 (클라이언트가 항상 존재하는 roomId만 전달한다는 가정)
-        String finalRoomId;
-        boolean isNewRoom = false;
+//         // 2. 방 ID 처리 (클라이언트가 항상 존재하는 roomId만 전달한다는 가정)
+//         String finalRoomId;
+//         boolean isNewRoom = false;
         
-        if (roomId == null) {
-            // 신규 방 생성
-            try {
-                Long newRoomId = chatRoomManagementService.getOrCreateRoomId(null, session.getId());
-                finalRoomId = newRoomId.toString();
-                isNewRoom = true;
-                log.info("신규 채팅방 생성: roomId={}, sessionId={}", finalRoomId, session.getId());
-            } catch (Exception e) {
-                log.error("채팅방 생성 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
-                return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
-            }
-        } else {
-            // 기존 방 사용
-            finalRoomId = roomId.toString();
-            log.info("기존 채팅방 사용: roomId={}, sessionId={}", finalRoomId, session.getId());
-        }
+//         if (roomId == null) {
+//             // 신규 방 생성
+//             try {
+//                 Long newRoomId = chatRoomManagementService.getOrCreateRoomId(null, session.getId());
+//                 finalRoomId = newRoomId.toString();
+//                 isNewRoom = true;
+//                 log.info("신규 채팅방 생성: roomId={}, sessionId={}", finalRoomId, session.getId());
+//             } catch (Exception e) {
+//                 log.error("채팅방 생성 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+//                 return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
+//             }
+//         } else {
+//             // 기존 방 사용
+//             finalRoomId = roomId.toString();
+//             log.info("기존 채팅방 사용: roomId={}, sessionId={}", finalRoomId, session.getId());
+//         }
 
-        // 3. 스트림 처리 오케스트레이터 서비스로 위임
-        log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}, isNewRoom={}", 
-                finalRoomId, userInput, session.getId(), isNewRoom);
+//         // 3. 스트림 처리 오케스트레이터 서비스로 위임
+//         log.info("스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}, isNewRoom={}", 
+//                 finalRoomId, userInput, session.getId(), isNewRoom);
         
-        try {
-            return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, isNewRoom, session);
-        } catch (Exception e) {
-            log.error("스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
-            return createErrorSseEmitter("스트림 처리에 실패했습니다: " + e.getMessage());
-        }
-    }
+//         try {
+//             return chatStreamOrchestrationService.processStreamChat(userInput, userProfile, finalRoomId, isNewRoom, session);
+//         } catch (Exception e) {
+//             log.error("스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+//             return createErrorSseEmitter("스트림 처리에 실패했습니다: " + e.getMessage());
+//         }
+//     }
     
-    /**
-     * 에러 SSE 에미터 생성 헬퍼 메서드
-     */
+//     /**
+//      * 에러 SSE 에미터 생성 헬퍼 메서드
+//      */
     private SseEmitter createErrorSseEmitter(String errorMessage) {
         SseEmitter errorEmitter = new SseEmitter(1000L);
         try {
