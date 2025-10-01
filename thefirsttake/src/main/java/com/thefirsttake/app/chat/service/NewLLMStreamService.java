@@ -415,11 +415,14 @@ public class NewLLMStreamService {
                     String imageUrl = String.valueOf(data.get("image_url"));
                     
                     if (imageUrl != null && !imageUrl.equals("null") && !imageUrl.isEmpty()) {
-                        // Redis에 저장 (가상피팅용)
-                        String fittingRedisKey = "product_url_" + productId.trim();
+                        // productId에서 숫자 부분만 추출 (가상피팅용)
+                        String numericProductId = extractNumericProductId(productId.trim());
+                        
+                        // Redis에 저장 (가상피팅용) - 숫자 부분만 사용
+                        String fittingRedisKey = "product_url_" + numericProductId;
                         redisTemplate.opsForValue().set(fittingRedisKey, imageUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
                         
-                        // Redis에 저장 (프론트엔드 API용)
+                        // Redis에 저장 (프론트엔드 API용) - 원본 productId 사용
                         String productInfoRedisKey = "product_id:" + productId.trim();
                         Map<String, Object> productInfoMap = new HashMap<>();
                         productInfoMap.put("product_id", productIdValue);
@@ -458,6 +461,33 @@ public class NewLLMStreamService {
         }
         
         return null;
+    }
+    
+    /**
+     * productId에서 숫자 부분만 추출 (가상피팅용)
+     * 예: "3271408_블루" -> "3271408"
+     */
+    private String extractNumericProductId(String productId) {
+        if (productId == null || productId.trim().isEmpty()) {
+            return productId;
+        }
+        
+        // 언더스코어(_) 앞의 숫자 부분만 추출
+        String[] parts = productId.trim().split("_");
+        if (parts.length > 0 && parts[0].matches("\\d+")) {
+            String numericId = parts[0];
+            log.debug("productId 숫자 부분 추출: original={}, numeric={}", productId, numericId);
+            return numericId;
+        }
+        
+        // 숫자만 있는 경우 그대로 반환
+        if (productId.matches("\\d+")) {
+            return productId;
+        }
+        
+        // 숫자가 포함되지 않은 경우 원본 반환
+        log.warn("productId에서 숫자 부분을 추출할 수 없음: {}", productId);
+        return productId;
     }
     
     
