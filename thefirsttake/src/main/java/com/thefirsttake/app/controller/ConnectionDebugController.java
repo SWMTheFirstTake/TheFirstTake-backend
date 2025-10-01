@@ -3,7 +3,6 @@ package com.thefirsttake.app.controller;
 import com.thefirsttake.app.service.ConnectionPoolMonitoringService;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +19,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/debug")
-@RequiredArgsConstructor
 @Slf4j
 public class ConnectionDebugController {
     
@@ -28,6 +26,10 @@ public class ConnectionDebugController {
     private DataSource dataSource;
     
     private final ConnectionPoolMonitoringService connectionPoolMonitoringService;
+    
+    public ConnectionDebugController(ConnectionPoolMonitoringService connectionPoolMonitoringService) {
+        this.connectionPoolMonitoringService = connectionPoolMonitoringService;
+    }
     
     /**
      * 현재 커넥션 풀 상태 확인

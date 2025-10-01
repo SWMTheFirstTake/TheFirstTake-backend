@@ -6,7 +6,6 @@ import com.thefirsttake.app.chat.repository.ChatRoomRepository;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
@@ -21,10 +20,15 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatRoomManagementService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserSessionService userSessionService;
+    
+    public ChatRoomManagementService(ChatRoomRepository chatRoomRepository,
+                                   UserSessionService userSessionService) {
+        this.chatRoomRepository = chatRoomRepository;
+        this.userSessionService = userSessionService;
+    }
 
     /**
      * 사용자의 모든 채팅방을 DTO 형태로 조회

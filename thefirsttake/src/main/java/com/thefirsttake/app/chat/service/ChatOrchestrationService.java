@@ -4,7 +4,6 @@ import com.thefirsttake.app.chat.dto.request.ChatMessageRequest;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
@@ -14,12 +13,21 @@ import org.springframework.stereotype.Service;
  * - 채팅 관련 비즈니스 로직 조율
  */
 @Service
-@RequiredArgsConstructor
 public class ChatOrchestrationService {
     private final UserSessionService userSessionService;
     private final ChatRoomManagementService chatRoomManagementService;
     private final ChatMessageService chatMessageService;
     private final ChatQueueService chatQueueService;
+    
+    public ChatOrchestrationService(UserSessionService userSessionService,
+                                  ChatRoomManagementService chatRoomManagementService,
+                                  ChatMessageService chatMessageService,
+                                  ChatQueueService chatQueueService) {
+        this.userSessionService = userSessionService;
+        this.chatRoomManagementService = chatRoomManagementService;
+        this.chatMessageService = chatMessageService;
+        this.chatQueueService = chatQueueService;
+    }
 
     /**
      * 채팅 메시지 전송을 처리하는 메인 메서드

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thefirsttake.app.common.response.CommonResponse;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * - 연결 상태 관리 및 종료 처리
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SSEConnectionService {
     
@@ -32,6 +31,14 @@ public class SSEConnectionService {
     private final Counter sseConnectionCounter;
     private final Counter sseDisconnectionCounter;
     private final Timer sseConnectionDurationTimer;
+    
+    public SSEConnectionService(@Qualifier("sseConnectionCounter") Counter sseConnectionCounter,
+                               @Qualifier("sseDisconnectionCounter") Counter sseDisconnectionCounter,
+                               @Qualifier("sseConnectionDurationTimer") Timer sseConnectionDurationTimer) {
+        this.sseConnectionCounter = sseConnectionCounter;
+        this.sseDisconnectionCounter = sseDisconnectionCounter;
+        this.sseConnectionDurationTimer = sseConnectionDurationTimer;
+    }
     
     // SSE 연결 상태 추적을 위한 맵
     private final Map<String, Boolean> connectionEndedMap = new ConcurrentHashMap<>();

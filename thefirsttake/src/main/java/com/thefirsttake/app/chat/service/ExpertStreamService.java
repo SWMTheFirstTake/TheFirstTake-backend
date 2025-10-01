@@ -1,15 +1,10 @@
 package com.thefirsttake.app.chat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -21,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import reactor.core.publisher.Flux;
 
 /**
  * 전문가별 스트림 처리를 담당하는 서비스
@@ -31,7 +25,6 @@ import reactor.core.publisher.Flux;
  * - 전문가 완료 상태 추적
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ExpertStreamService {
     
@@ -46,6 +39,23 @@ public class ExpertStreamService {
     private final StreamMetricsService streamMetricsService;
     private final ProductSearchStreamService productSearchStreamService;
     private final MessageStorageService messageStorageService;
+    private final NewLLMStreamService newLLMStreamService;
+    
+    public ExpertStreamService(RestTemplate restTemplate,
+                              WebClient.Builder webClientBuilder,
+                              SSEConnectionService sseConnectionService,
+                              StreamMetricsService streamMetricsService,
+                              ProductSearchStreamService productSearchStreamService,
+                              MessageStorageService messageStorageService,
+                              NewLLMStreamService newLLMStreamService) {
+        this.restTemplate = restTemplate;
+        this.webClientBuilder = webClientBuilder;
+        this.sseConnectionService = sseConnectionService;
+        this.streamMetricsService = streamMetricsService;
+        this.productSearchStreamService = productSearchStreamService;
+        this.messageStorageService = messageStorageService;
+        this.newLLMStreamService = newLLMStreamService;
+    }
     
     /**
      * 전문가 리스트 반환
@@ -147,7 +157,34 @@ public class ExpertStreamService {
     }
     
     /**
-     * LLM API 진짜 스트림 호출 및 처리
+     * 새로운 LLM 서버로 스트림 처리 (새로운 로직)
+     */
+    public ExpertProcessResult processNewLlmStream(String userInput, String userProfile, 
+                                                 String roomId, String sessionId, SseEmitter emitter, 
+                                                 AtomicBoolean cancelled) {
+        
+        StringBuilder finalText = new StringBuilder();
+        List<com.thefirsttake.app.chat.dto.response.ProductInfo> products = new ArrayList<>();
+        
+        try {
+            // 새로운 LLM 서비스로 스트림 처리
+            NewLLMStreamService.ExpertProcessResult result = newLLMStreamService.processNewLlmStream(userInput, userProfile, roomId, sessionId, emitter, cancelled);
+            
+            // 결과 반환
+            return new ExpertProcessResult(result.getMessage(), result.getProducts(), result.isSuccess());
+            
+        } catch (Exception e) {
+            log.error("새로운 LLM 스트림 처리 중 오류: error={}", e.getMessage(), e);
+            if (!cancelled.get()) {
+                sseConnectionService.sendErrorEvent(emitter, "새로운 LLM 스트림 처리 오류: " + e.getMessage(), null);
+            }
+        }
+        
+        return new ExpertProcessResult(finalText.toString(), products, false);
+    }
+    
+    /**
+     * LLM API 진짜 스트림 호출 및 처리 (기존 로직)
      */
     private void processLlmStreamResponse(Map<String, Object> expertRequest, String expertType, 
                                         SseEmitter emitter, AtomicBoolean cancelled, StringBuilder finalText) {

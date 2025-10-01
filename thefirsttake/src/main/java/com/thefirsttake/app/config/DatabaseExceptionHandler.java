@@ -1,7 +1,6 @@
 package com.thefirsttake.app.config;
 
 import com.thefirsttake.app.service.ConnectionPoolMonitoringService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.QueryTimeoutException;
@@ -16,10 +15,13 @@ import java.sql.SQLTimeoutException;
  */
 @ControllerAdvice
 @Slf4j
-@RequiredArgsConstructor
 public class DatabaseExceptionHandler {
     
     private final ConnectionPoolMonitoringService connectionPoolMonitoringService;
+    
+    public DatabaseExceptionHandler(ConnectionPoolMonitoringService connectionPoolMonitoringService) {
+        this.connectionPoolMonitoringService = connectionPoolMonitoringService;
+    }
     
     /**
      * SQL 타임아웃 예외 처리

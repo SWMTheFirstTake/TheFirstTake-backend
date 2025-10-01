@@ -1,6 +1,5 @@
 package com.thefirsttake.app.chat.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -20,9 +19,12 @@ import java.util.Map;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ProductSearchService {
     private final RestTemplate restTemplate;
+    
+    public ProductSearchService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
     
     @Value("${ai.server.host}")
     private String aiServerHost;

@@ -9,8 +9,8 @@ import com.thefirsttake.app.chat.entity.ChatMessage;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.chat.enums.ChatAgentType;
 import com.thefirsttake.app.common.user.entity.UserEntity;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -27,13 +27,24 @@ import java.util.List;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatQueueService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatCurationOrchestrationService chatCurationOrchestrationService;
     private final ChatRoomManagementService chatRoomManagementService;
     private final ChatMessageService chatMessageService;
+    
+    public ChatQueueService(@Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate,
+                           ObjectMapper objectMapper,
+                           ChatCurationOrchestrationService chatCurationOrchestrationService,
+                           ChatRoomManagementService chatRoomManagementService,
+                           ChatMessageService chatMessageService) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.chatCurationOrchestrationService = chatCurationOrchestrationService;
+        this.chatRoomManagementService = chatRoomManagementService;
+        this.chatMessageService = chatMessageService;
+    }
 
     /**
      * 메시지를 큐에 추가 (모든 에이전트별로)

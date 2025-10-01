@@ -11,6 +11,7 @@ import com.thefirsttake.app.common.user.repository.UserEntityRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.beans.factory.annotation.Qualifier;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -21,7 +22,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -35,7 +35,6 @@ import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 @Slf4j
 @Tag(name = "인증 관리", description = "카카오 OAuth 로그인 및 사용자 인증 관련 API")
 public class AuthController {
@@ -48,6 +47,24 @@ public class AuthController {
     private final Counter kakaoLoginFailureCounter;
     private final Counter logoutCounter;
     private final Timer jwtTokenGenerationTimer;
+    
+    public AuthController(KakaoAuthService kakaoAuthService, 
+                         JwtService jwtService, 
+                         RefreshTokenService refreshTokenService, 
+                         UserEntityRepository userEntityRepository,
+                         @Qualifier("kakaoLoginSuccessCounter") Counter kakaoLoginSuccessCounter,
+                         @Qualifier("kakaoLoginFailureCounter") Counter kakaoLoginFailureCounter,
+                         @Qualifier("logoutCounter") Counter logoutCounter,
+                         @Qualifier("jwtTokenGenerationTimer") Timer jwtTokenGenerationTimer) {
+        this.kakaoAuthService = kakaoAuthService;
+        this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
+        this.userEntityRepository = userEntityRepository;
+        this.kakaoLoginSuccessCounter = kakaoLoginSuccessCounter;
+        this.kakaoLoginFailureCounter = kakaoLoginFailureCounter;
+        this.logoutCounter = logoutCounter;
+        this.jwtTokenGenerationTimer = jwtTokenGenerationTimer;
+    }
     
     
     @Operation(

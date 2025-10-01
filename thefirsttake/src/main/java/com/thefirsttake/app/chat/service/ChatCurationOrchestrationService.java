@@ -3,7 +3,6 @@ package com.thefirsttake.app.chat.service;
 import com.thefirsttake.app.chat.constant.ChatAgentConstants;
 import com.thefirsttake.app.chat.dto.response.ChatAgentResponse;
 import com.thefirsttake.app.chat.enums.ChatAgentType;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -19,10 +18,15 @@ import java.util.Map;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatCurationOrchestrationService {
     private final ChatAIService chatAIService;
     private final ChatPromptService chatPromptService;
+    
+    public ChatCurationOrchestrationService(ChatAIService chatAIService,
+                                          ChatPromptService chatPromptService) {
+        this.chatAIService = chatAIService;
+        this.chatPromptService = chatPromptService;
+    }
 
     /**
      * 큐레이션 응답 생성 (메인 메서드) - 단일 에이전트 처리

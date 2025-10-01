@@ -5,7 +5,6 @@ import com.thefirsttake.app.chat.dto.response.ChatAgentResponse;
 import com.thefirsttake.app.chat.entity.ChatRoom;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,13 +20,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * - DB 트랜잭션 관리
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class MessageStorageService {
     
     private final ChatMessageService chatMessageService;
     private final UserSessionService userSessionService;
     private final ChatRoomManagementService chatRoomManagementService;
+    
+    public MessageStorageService(ChatMessageService chatMessageService,
+                               UserSessionService userSessionService,
+                               ChatRoomManagementService chatRoomManagementService) {
+        this.chatMessageService = chatMessageService;
+        this.userSessionService = userSessionService;
+        this.chatRoomManagementService = chatRoomManagementService;
+    }
     
     // 캐시를 위한 Map (요청 단위로 사용)
     private final Map<String, UserEntity> userEntityCache = new ConcurrentHashMap<>();
@@ -54,7 +60,7 @@ public class MessageStorageService {
                 id -> chatRoomManagementService.getRoomById(Long.valueOf(id)));
             
             // 사용자 메시지를 캐시에 저장
-            String cacheKey = sessionId + ":" + roomId;
+            String cacheKey = "user_message:" + sessionId + ":" + roomId;
             userMessageCache.put(cacheKey, userInput);
             
             log.info("사용자 메시지를 캐시에 저장했습니다. roomId={}, message='{}', cacheKey={}", roomId, userInput, cacheKey);
@@ -135,7 +141,7 @@ public class MessageStorageService {
             }
             
             // 캐시 키 생성
-            String cacheKey = sessionId + ":" + roomId;
+            String cacheKey = "ai_response:" + sessionId + ":" + roomId;
             
             // AI 응답을 캐시에 추가
             aiResponseCache.computeIfAbsent(cacheKey, k -> new java.util.ArrayList<>()).add(agentResponse);
@@ -230,7 +236,7 @@ public class MessageStorageService {
     @Transactional
     public void saveAllMessagesFromCache(String sessionId, String roomId) {
         try {
-            String cacheKey = sessionId + ":" + roomId;
+            String cacheKey = "user_message:" + sessionId + ":" + roomId;
             
             // 캐시에서 엔티티 조회
             UserEntity userEntity = userEntityCache.get(sessionId);
@@ -254,7 +260,8 @@ public class MessageStorageService {
             }
             
             // 2. 모든 AI 응답 저장
-            List<ChatAgentResponse> responses = aiResponseCache.get(cacheKey);
+            String aiCacheKey = "ai_response:" + sessionId + ":" + roomId;
+            List<ChatAgentResponse> responses = aiResponseCache.get(aiCacheKey);
             if (responses != null && !responses.isEmpty()) {
                 for (ChatAgentResponse response : responses) {
                     chatMessageService.saveAIResponse(userEntity, chatRoom, response);
@@ -264,7 +271,7 @@ public class MessageStorageService {
             
             // 캐시 정리
             userMessageCache.remove(cacheKey);
-            aiResponseCache.remove(cacheKey);
+            aiResponseCache.remove(aiCacheKey);
             
             log.info("통합 배치 저장 완료: sessionId={}, roomId={}", sessionId, roomId);
             
@@ -283,7 +290,7 @@ public class MessageStorageService {
     @Transactional
     public void saveAllResponsesFromCache(String sessionId, String roomId) {
         try {
-            String cacheKey = sessionId + ":" + roomId;
+            String cacheKey = "ai_response:" + sessionId + ":" + roomId;
             List<ChatAgentResponse> responses = aiResponseCache.get(cacheKey);
             
             if (responses == null || responses.isEmpty()) {
@@ -353,11 +360,12 @@ public class MessageStorageService {
      */
     public void clearCache(String sessionId, String roomId) {
         try {
-            String cacheKey = sessionId + ":" + roomId;
+            String userCacheKey = "user_message:" + sessionId + ":" + roomId;
+            String aiCacheKey = "ai_response:" + sessionId + ":" + roomId;
             
             // 메시지 캐시 정리
-            userMessageCache.remove(cacheKey);
-            aiResponseCache.remove(cacheKey);
+            userMessageCache.remove(userCacheKey);
+            aiResponseCache.remove(aiCacheKey);
             
             // 엔티티 캐시는 요청 단위로 유지 (다른 요청에서 재사용 가능)
             // userEntityCache.remove(sessionId);

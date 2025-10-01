@@ -1,7 +1,6 @@
 package com.thefirsttake.app.chat.service;
 
 import jakarta.servlet.http.HttpSession;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -19,7 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * - 비동기 처리 관리
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ChatStreamOrchestrationService {
     
@@ -28,8 +26,18 @@ public class ChatStreamOrchestrationService {
     private final MessageStorageService messageStorageService;
     private final StreamMetricsService streamMetricsService;
     
+    public ChatStreamOrchestrationService(SSEConnectionService sseConnectionService,
+                                         ExpertStreamService expertStreamService,
+                                         MessageStorageService messageStorageService,
+                                         StreamMetricsService streamMetricsService) {
+        this.sseConnectionService = sseConnectionService;
+        this.expertStreamService = expertStreamService;
+        this.messageStorageService = messageStorageService;
+        this.streamMetricsService = streamMetricsService;
+    }
+    
     /**
-     * 스트림 채팅 처리 메인 메서드
+     * 스트림 채팅 처리 메인 메서드 (기존 로직)
      * @param userInput 사용자 입력
      * @param userProfile 사용자 프로필
      * @param roomId 방 ID
@@ -144,6 +152,109 @@ public class ChatStreamOrchestrationService {
             
             try {
                 sseConnectionService.sendErrorEvent(emitter, "스트림 초기화 실패: " + e.getMessage(), null);
+                sseConnectionService.completeConnection(connectionId, emitter, forceCompleted);
+            } catch (Exception cleanupError) {
+                log.error("에러 발생 시 정리 작업 실패: connectionId={}, error={}", connectionId, cleanupError.getMessage());
+            }
+        }
+        
+        return emitter;
+    }
+    
+    /**
+     * 새로운 LLM 서버로 스트림 채팅 처리 (새로운 로직)
+     * @param userInput 사용자 입력
+     * @param userProfile 사용자 프로필
+     * @param roomId 방 ID
+     * @param isNewRoom 신규 방 생성 여부
+     * @param session 세션
+     * @return SSE 에미터
+     */
+    public SseEmitter processNewStreamChat(String userInput, String userProfile, String roomId, boolean isNewRoom, HttpSession session) {
+        
+        // 연결 ID 생성
+        String connectionId = generateConnectionId(session);
+        
+        // SSE 에미터 생성 및 초기화
+        SseEmitter emitter = new SseEmitter(300000L);
+        
+        // 연결 상태 추적
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        AtomicBoolean forceCompleted = new AtomicBoolean(false);
+        
+        // 최종 방 ID 결정
+        String finalRoomId = roomId;
+        
+        log.info("🚀 새로운 LLM 스트림 채팅 처리 시작: connectionId={}, roomId={}, finalRoomId={}", 
+                connectionId, roomId, finalRoomId);
+        
+        try {
+            // SSE 연결 초기화 (신규 방 생성 여부를 전달)
+            sseConnectionService.initializeConnection(connectionId, emitter, isNewRoom ? null : roomId, finalRoomId);
+            
+            // 비동기 스트림 처리 시작
+            CompletableFuture.runAsync(() -> {
+                try {
+                    // 메모리 사용량 측정 시작
+                    streamMetricsService.recordMemoryUsage(connectionId);
+                    
+                    // 사용자 메시지를 캐시에 임시 저장 (배치 저장을 위해)
+                    messageStorageService.saveUserMessageToCache(session.getId(), userInput, finalRoomId);
+                    
+                    log.info("👨‍💼 새로운 LLM 전문가 처리 시작: roomId={}", finalRoomId);
+                    
+                    // 새로운 LLM 서비스로 처리 (전문가별 순차 처리)
+                    ExpertStreamService.ExpertProcessResult result = expertStreamService.processNewLlmStream(
+                            userInput, userProfile, finalRoomId, session.getId(), emitter, cancelled
+                    );
+                    
+                    if (cancelled.get()) return;
+                    
+                    log.info("🎉 새로운 LLM 응답 완료 - SSE 연결 종료: roomId={}", finalRoomId);
+                    
+                    // 최종 완료 이벤트 전송 (전문가 수만큼)
+                    sseConnectionService.sendFinalCompleteEvent(emitter, 3); // style_analyst, color_expert, fitting_coordinator
+                    
+                    // 캐시된 모든 메시지를 한 번에 DB에 저장 (통합 배치 저장)
+                    try {
+                        messageStorageService.saveAllMessagesFromCache(session.getId(), finalRoomId);
+                        log.info("✅ 통합 배치 저장 완료: sessionId={}, roomId={}", session.getId(), finalRoomId);
+                    } catch (Exception e) {
+                        log.error("❌ 통합 배치 저장 실패: sessionId={}, roomId={}, error={}", 
+                                session.getId(), finalRoomId, e.getMessage(), e);
+                    }
+                    
+                    // SSE 연결 종료
+                    forceCompleted.set(true);
+                    sseConnectionService.completeConnection(connectionId, emitter, forceCompleted);
+                    
+                    // 연결 추적 정리
+                    cleanupConnection(connectionId);
+                    
+                } catch (Exception e) {
+                    log.error("새로운 LLM 스트림 처리 중 오류 발생: connectionId={}, error={}", connectionId, e.getMessage(), e);
+                    
+                    if (!cancelled.get()) {
+                        sseConnectionService.sendErrorEvent(emitter, "새로운 LLM 스트림 처리 오류: " + e.getMessage(), null);
+                    }
+                } finally {
+                    // 최종 정리
+                    if (!forceCompleted.get()) {
+                        forceCompleted.set(true);
+                        sseConnectionService.completeConnection(connectionId, emitter, forceCompleted);
+                        cleanupConnection(connectionId);
+                    }
+                }
+            });
+            
+            // 연결 추적 설정
+            setupConnectionTracking(connectionId, emitter, cancelled);
+            
+        } catch (Exception e) {
+            log.error("새로운 LLM 스트림 채팅 초기화 실패: connectionId={}, error={}", connectionId, e.getMessage(), e);
+            
+            try {
+                sseConnectionService.sendErrorEvent(emitter, "새로운 LLM 스트림 초기화 실패: " + e.getMessage(), null);
                 sseConnectionService.completeConnection(connectionId, emitter, forceCompleted);
             } catch (Exception cleanupError) {
                 log.error("에러 발생 시 정리 작업 실패: connectionId={}, error={}", connectionId, cleanupError.getMessage());

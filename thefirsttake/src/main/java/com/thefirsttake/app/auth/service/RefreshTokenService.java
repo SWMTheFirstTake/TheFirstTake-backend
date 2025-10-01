@@ -1,15 +1,18 @@
 package com.thefirsttake.app.auth.service;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
 @Service
-@RequiredArgsConstructor
 public class RefreshTokenService {
     private final StringRedisTemplate stringRedisTemplate;
+    
+    public RefreshTokenService(@Qualifier("stringRedisTemplate") StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     private String buildKey(String userId) {
         // Key format: {user_id}:refresh_token (per requested convention)

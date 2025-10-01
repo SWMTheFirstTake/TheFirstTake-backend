@@ -4,7 +4,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 응답 시간 측정
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class StreamMetricsService {
     
@@ -41,6 +40,34 @@ public class StreamMetricsService {
     private final Counter productSearchApiSuccessCounter;
     private final Counter productSearchApiFailureCounter;
     private final Timer productSearchApiResponseTimer;
+    
+    public StreamMetricsService(MeterRegistry meterRegistry,
+                               @Qualifier("sseConnectionCounter") Counter sseConnectionCounter,
+                               @Qualifier("sseDisconnectionCounter") Counter sseDisconnectionCounter,
+                               @Qualifier("sseConnectionDurationTimer") Timer sseConnectionDurationTimer,
+                               @Qualifier("llmApiCallCounter") Counter llmApiCallCounter,
+                               @Qualifier("llmApiSuccessCounter") Counter llmApiSuccessCounter,
+                               @Qualifier("llmApiFailureCounter") Counter llmApiFailureCounter,
+                               @Qualifier("llmApiResponseTimer") Timer llmApiResponseTimer,
+                               @Qualifier("llmApiCallCounterByExpert") Counter llmApiCallCounterByExpert,
+                               @Qualifier("productSearchApiCallCounter") Counter productSearchApiCallCounter,
+                               @Qualifier("productSearchApiSuccessCounter") Counter productSearchApiSuccessCounter,
+                               @Qualifier("productSearchApiFailureCounter") Counter productSearchApiFailureCounter,
+                               @Qualifier("productSearchApiResponseTimer") Timer productSearchApiResponseTimer) {
+        this.meterRegistry = meterRegistry;
+        this.sseConnectionCounter = sseConnectionCounter;
+        this.sseDisconnectionCounter = sseDisconnectionCounter;
+        this.sseConnectionDurationTimer = sseConnectionDurationTimer;
+        this.llmApiCallCounter = llmApiCallCounter;
+        this.llmApiSuccessCounter = llmApiSuccessCounter;
+        this.llmApiFailureCounter = llmApiFailureCounter;
+        this.llmApiResponseTimer = llmApiResponseTimer;
+        this.llmApiCallCounterByExpert = llmApiCallCounterByExpert;
+        this.productSearchApiCallCounter = productSearchApiCallCounter;
+        this.productSearchApiSuccessCounter = productSearchApiSuccessCounter;
+        this.productSearchApiFailureCounter = productSearchApiFailureCounter;
+        this.productSearchApiResponseTimer = productSearchApiResponseTimer;
+    }
     
     // 메모리 추적을 위한 맵
     private final ConcurrentHashMap<String, Long> connectionMemoryMap = new ConcurrentHashMap<>();

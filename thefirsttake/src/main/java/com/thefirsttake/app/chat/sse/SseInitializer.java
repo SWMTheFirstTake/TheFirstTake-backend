@@ -2,7 +2,7 @@ package com.thefirsttake.app.chat.sse;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class SseInitializer {
     private final Counter sseConnectionCounter;
@@ -21,6 +20,18 @@ public class SseInitializer {
     private final Timer sseConnectionDurationTimer;
     private final Counter sseApiTotalCounter;
     private final Timer sseApiTotalResponseTimer;
+    
+    public SseInitializer(@Qualifier("sseConnectionCounter") Counter sseConnectionCounter,
+                         @Qualifier("sseDisconnectionCounter") Counter sseDisconnectionCounter,
+                         @Qualifier("sseConnectionDurationTimer") Timer sseConnectionDurationTimer,
+                         @Qualifier("sseApiTotalCounter") Counter sseApiTotalCounter,
+                         @Qualifier("sseApiTotalResponseTimer") Timer sseApiTotalResponseTimer) {
+        this.sseConnectionCounter = sseConnectionCounter;
+        this.sseDisconnectionCounter = sseDisconnectionCounter;
+        this.sseConnectionDurationTimer = sseConnectionDurationTimer;
+        this.sseApiTotalCounter = sseApiTotalCounter;
+        this.sseApiTotalResponseTimer = sseApiTotalResponseTimer;
+    }
     // 내부 관리용 맵 (빈 주입 아님)
     private final ConcurrentHashMap<String, Boolean> connectionEndedMap = new ConcurrentHashMap<>();
 

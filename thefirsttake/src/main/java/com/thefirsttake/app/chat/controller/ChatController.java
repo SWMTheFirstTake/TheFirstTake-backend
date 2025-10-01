@@ -18,6 +18,7 @@ import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.common.service.S3Service;
 import com.thefirsttake.app.common.user.entity.UserEntity;
 import com.thefirsttake.app.common.user.service.UserSessionService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.client.RestTemplate;
@@ -64,6 +65,7 @@ public class ChatController {
     private final ProductSearchService productSearchService;
     private final ProductCacheService productCacheService;
     private final RestTemplate restTemplate;
+    @Qualifier("redisTemplate")
     private final RedisTemplate<String, String> redisTemplate;
     private final SseInitializer sseInitializer;
     
@@ -82,7 +84,7 @@ public class ChatController {
                          ProductCacheService productCacheService,
                          SseInitializer sseInitializer,
                          RestTemplate restTemplate,
-                         RedisTemplate<String, String> redisTemplate,
+                         @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate,
                          ChatStreamOrchestrationService chatStreamOrchestrationService) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
@@ -1068,7 +1070,7 @@ public class ChatController {
                     )
             }
     )
-    @GetMapping("/rooms/messages/stream")
+    @GetMapping("/rooms/messages/new-stream")
     public SseEmitter streamChatMessage(
             @RequestParam(value = "room_id", required = false) Long roomId,
             @RequestParam("user_input") String userInput,
@@ -1128,6 +1130,165 @@ public class ChatController {
             log.error("에러 응답 전송 실패", ex);
         }
         return errorEmitter;
+    }
+    
+    /**
+     * 새로운 LLM 서버로 스트림 채팅 처리 (새로운 로직 테스트용)
+     */
+    @Operation(
+        summary = "새로운 LLM 서버 스트림 채팅",
+        description = """
+            새로운 LLM 서버를 사용한 실시간 스트림 채팅 처리입니다.
+            
+            **새로운 LLM 서버 특징:**
+            - token, status, message, [DONE] 이벤트 처리
+            - 자동 상품 검색 및 추천
+            - 단일 전문가 응답 (순차 처리)
+            
+            **사용법:**
+            - GET 요청으로 SSE 연결 시작
+            - user_input: 사용자 메시지 (필수)
+            - room_id: 채팅방 ID (선택, 없으면 새로 생성)
+            - user_profile: 사용자 프로필 (선택)
+            
+            **응답 이벤트:**
+            - room: 신규 방 생성 시
+            - connect: SSE 연결 성공
+            - content: 실시간 텍스트 스트림
+            - complete: 전문가 응답 완료 (상품 정보 포함)
+            - final_complete: 전체 응답 완료
+            - error: 오류 발생 시
+            """,
+        parameters = {
+            @Parameter(
+                name = "user_input",
+                description = "사용자가 입력한 메시지",
+                required = true,
+                schema = @Schema(type = "string")
+            ),
+            @Parameter(
+                name = "room_id",
+                description = "채팅방 ID (없으면 새로 생성)",
+                required = false,
+                schema = @Schema(type = "integer", format = "int64")
+            ),
+            @Parameter(
+                name = "user_profile",
+                description = "사용자 프로필 정보 (선택사항)",
+                required = false,
+                schema = @Schema(type = "string")
+            )
+        },
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "SSE 스트림 연결 성공",
+                content = @Content(
+                    mediaType = "text/event-stream",
+                    examples = @ExampleObject(
+                        name = "SSE 이벤트 예시",
+                        summary = "실시간 스트림 이벤트",
+                        value = """
+                        event: room
+                        data: {"status":"success","data":{"room_id":"123","type":"room","timestamp":1234567890}}
+                        
+                        event: connect
+                        data: {"status":"success","data":{"message":"SSE 연결 성공","type":"connect","timestamp":1234567890}}
+                        
+                        event: content
+                        data: {"status":"success","data":{"message":"안녕하세요","agent_id":"style_analyst","agent_name":"스타일 분석가","type":"content","timestamp":1234567890}}
+                        
+                        event: complete
+                        data: {"status":"success","data":{"message":"전체 응답","agent_id":"style_analyst","agent_name":"스타일 분석가","products":[...],"type":"complete","timestamp":1234567890}}
+                        
+                        event: final_complete
+                        data: {"status":"success","data":{"message":"모든 전문가 응답이 완료되었습니다.","total_experts":1,"type":"final_complete","timestamp":1234567890}}
+                        """
+                    )
+                )
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "잘못된 요청 (필수 파라미터 누락 등)",
+                content = @Content(
+                    mediaType = "application/json",
+                    examples = @ExampleObject(
+                        name = "오류 응답",
+                        summary = "필수 파라미터 누락",
+                        value = """
+                        {
+                          "status": "fail",
+                          "message": "사용자 입력은 필수입니다.",
+                          "data": null
+                        }
+                        """
+                    )
+                )
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "서버 내부 오류",
+                content = @Content(
+                    mediaType = "application/json",
+                    examples = @ExampleObject(
+                        name = "서버 오류",
+                        summary = "예상치 못한 서버 오류",
+                        value = """
+                        {
+                          "status": "fail",
+                          "message": "새로운 LLM 스트림 처리 중 오류가 발생했습니다: [오류 메시지]",
+                          "data": null
+                        }
+                        """
+                    )
+                )
+            )
+        }
+    )
+    @GetMapping("/rooms/messages/stream")
+    public SseEmitter streamNewChatMessage(
+            @RequestParam(value = "room_id", required = false) Long roomId,
+            @RequestParam("user_input") String userInput,
+            @RequestParam(value = "user_profile", required = false) String userProfile,
+            HttpServletRequest httpRequest
+    ) {
+        // 1. 세션 처리
+        HttpSession session = httpRequest.getSession(false);
+        if (session == null) {
+            session = httpRequest.getSession(true);
+        }
+
+        // 2. 방 ID 처리
+        String finalRoomId;
+        boolean isNewRoom = false;
+        
+        if (roomId == null) {
+            // 신규 방 생성
+            try {
+                Long newRoomId = chatRoomManagementService.getOrCreateRoomId(null, session.getId());
+                finalRoomId = newRoomId.toString();
+                isNewRoom = true;
+                log.info("신규 채팅방 생성 (새로운 LLM): roomId={}, sessionId={}", finalRoomId, session.getId());
+            } catch (Exception e) {
+                log.error("채팅방 생성 실패 (새로운 LLM): sessionId={}, error={}", session.getId(), e.getMessage(), e);
+                return createErrorSseEmitter("채팅방 생성에 실패했습니다: " + e.getMessage());
+            }
+        } else {
+            // 기존 방 사용
+            finalRoomId = roomId.toString();
+            log.info("기존 채팅방 사용 (새로운 LLM): roomId={}, sessionId={}", finalRoomId, session.getId());
+        }
+
+        // 3. 새로운 스트림 처리 오케스트레이터 서비스로 위임
+        log.info("새로운 LLM 스트림 채팅 처리 시작: roomId={}, userInput={}, sessionId={}, isNewRoom={}", 
+                finalRoomId, userInput, session.getId(), isNewRoom);
+        
+        try {
+            return chatStreamOrchestrationService.processNewStreamChat(userInput, userProfile, finalRoomId, isNewRoom, session);
+        } catch (Exception e) {
+            log.error("새로운 LLM 스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
+            return createErrorSseEmitter("새로운 LLM 스트림 처리에 실패했습니다: " + e.getMessage());
+        }
     }
 
 

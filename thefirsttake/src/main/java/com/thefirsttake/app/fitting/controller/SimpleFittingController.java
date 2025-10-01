@@ -3,6 +3,7 @@ package com.thefirsttake.app.fitting.controller;
 import com.thefirsttake.app.common.response.CommonResponse;
 import com.thefirsttake.app.fitting.client.FitRoomApiClient;
 import com.thefirsttake.app.fitting.dto.response.FittingResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,9 +29,10 @@ public class SimpleFittingController {
     
     private final FitRoomApiClient fitRoomClient;
     private final RestTemplate restTemplate;
+    @Qualifier("redisTemplate")
     private final RedisTemplate<String, String> redisTemplate;
     
-    public SimpleFittingController(FitRoomApiClient fitRoomClient, RestTemplate restTemplate, RedisTemplate<String, String> redisTemplate) {
+    public SimpleFittingController(FitRoomApiClient fitRoomClient, RestTemplate restTemplate, @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate) {
         this.fitRoomClient = fitRoomClient;
         this.restTemplate = restTemplate;
         this.redisTemplate = redisTemplate;

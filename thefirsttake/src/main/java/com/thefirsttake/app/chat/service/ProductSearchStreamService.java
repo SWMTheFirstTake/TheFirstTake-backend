@@ -1,8 +1,8 @@
 package com.thefirsttake.app.chat.service;
 
 import com.thefirsttake.app.chat.dto.response.ProductInfo;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +19,6 @@ import java.util.concurrent.TimeUnit;
  * - ProductInfo 객체 생성
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ProductSearchStreamService {
     
@@ -27,6 +26,16 @@ public class ProductSearchStreamService {
     private final ProductCacheService productCacheService;
     private final RedisTemplate<String, String> redisTemplate;
     private final StreamMetricsService streamMetricsService;
+    
+    public ProductSearchStreamService(ProductSearchService productSearchService,
+                                     ProductCacheService productCacheService,
+                                     @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate,
+                                     StreamMetricsService streamMetricsService) {
+        this.productSearchService = productSearchService;
+        this.productCacheService = productCacheService;
+        this.redisTemplate = redisTemplate;
+        this.streamMetricsService = streamMetricsService;
+    }
     
     /**
      * 상품 검색 및 캐싱 처리

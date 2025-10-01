@@ -1,6 +1,6 @@
 package com.thefirsttake.app.chat.service;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -13,9 +13,12 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatPromptService {
     private final StringRedisTemplate redisTemplate;
+    
+    public ChatPromptService(@Qualifier("stringRedisTemplate") StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
 
     /**
      * 프롬프트 키 존재 여부 확인

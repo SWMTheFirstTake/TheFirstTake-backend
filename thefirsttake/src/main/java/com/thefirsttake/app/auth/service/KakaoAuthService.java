@@ -1,7 +1,6 @@
 package com.thefirsttake.app.auth.service;
 
 import com.thefirsttake.app.auth.dto.KakaoUserInfo;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -13,7 +12,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class KakaoAuthService {
     
@@ -27,6 +25,10 @@ public class KakaoAuthService {
     private String redirectUri;
     
     private final RestTemplate restTemplate;
+    
+    public KakaoAuthService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
     
     public String getAccessToken(String authorizationCode) throws Exception {
         String tokenUrl = "https://kauth.kakao.com/oauth/token";
