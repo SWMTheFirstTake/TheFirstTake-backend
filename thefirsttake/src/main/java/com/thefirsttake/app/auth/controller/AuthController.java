@@ -188,7 +188,7 @@ public class AuthController {
             
             // 6. 프론트엔드로 리다이렉트
             HttpHeaders headers = new HttpHeaders();
-            headers.setLocation(URI.create("https://the-second-take.com/"));
+            headers.setLocation(URI.create("https://the-first-take.com/"));
             // headers.setLocation(URI.create("http://localhost:3000/"));
             
             log.info("카카오 로그인 성공. 프론트엔드로 리다이렉트");
