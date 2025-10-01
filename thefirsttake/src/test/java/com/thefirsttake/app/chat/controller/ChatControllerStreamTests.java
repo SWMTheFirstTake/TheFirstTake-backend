@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
@@ -44,6 +45,13 @@ class ChatControllerStreamTests {
     @MockBean private WebClient.Builder webClientBuilder;
     @MockBean private SSEConnectionService sseConnectionService;
     @MockBean private MessageStorageService messageStorageService;
+    @MockBean private ChatAIService chatAIService;
+    @MockBean private ChatPromptService chatPromptService;
+    @MockBean private StringRedisTemplate stringRedisTemplate;
+    @MockBean private ExpertStreamService expertStreamService;
+    @MockBean private StreamMetricsService streamMetricsService;
+    @MockBean private ProductSearchStreamService productSearchStreamService;
+    @MockBean private NewLLMStreamService newLLMStreamService;
 
     @Test
     @DisplayName("GET /api/chat/rooms/messages/stream returns 200")
