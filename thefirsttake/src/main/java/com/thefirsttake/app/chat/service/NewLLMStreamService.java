@@ -2,7 +2,9 @@ package com.thefirsttake.app.chat.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -35,15 +37,21 @@ public class NewLLMStreamService {
     private final SSEConnectionService sseConnectionService;
     private final MessageStorageService messageStorageService;
     private final RestTemplate restTemplate;
+    private final ProductSearchService productSearchService;
+    private final RedisTemplate<String, String> redisTemplate;
     
     public NewLLMStreamService(WebClient.Builder webClientBuilder,
                               SSEConnectionService sseConnectionService,
                               MessageStorageService messageStorageService,
-                              RestTemplate restTemplate) {
+                              RestTemplate restTemplate,
+                              ProductSearchService productSearchService,
+                              @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate) {
         this.webClientBuilder = webClientBuilder;
         this.sseConnectionService = sseConnectionService;
         this.messageStorageService = messageStorageService;
         this.restTemplate = restTemplate;
+        this.productSearchService = productSearchService;
+        this.redisTemplate = redisTemplate;
     }
     
     /**
@@ -387,19 +395,16 @@ public class NewLLMStreamService {
     }
     
     /**
-     * 상품 ID로 상품 정보 검색
+     * 상품 ID로 상품 정보 검색 및 Redis 저장
      */
     private com.thefirsttake.app.chat.dto.response.ProductInfo searchProductById(String productId) {
         try {
+            log.info("상품 검색 시작: productId={}", productId);
+            
+            // ProductSearchService를 사용하여 상품 검색
             String searchUrl = "https://the-first-take.com/search/" + productId;
-            
-            log.info("상품 검색 API 호출: url={}", searchUrl);
-            
-            // RestTemplate으로 GET 요청 (블로킹 허용)
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.getForObject(searchUrl, Map.class);
-            
-            log.info("상품 검색 API 응답: productId={}, response={}", productId, response);
             
             if (response != null && Boolean.TRUE.equals(response.get("success"))) {
                 @SuppressWarnings("unchecked")
@@ -408,33 +413,25 @@ public class NewLLMStreamService {
                 if (data != null) {
                     String productIdValue = String.valueOf(data.get("product_id"));
                     String imageUrl = String.valueOf(data.get("image_url"));
-                    String productName = String.valueOf(data.get("product_name"));
-                    String brandName = String.valueOf(data.get("brand_name"));
-                    Object currentPrice = data.get("current_price");
-                    Object originalPrice = data.get("original_price");
                     
-                    log.info("상품 정보 추출: productId={}, productName={}, brandName={}, imageUrl={}, currentPrice={}, originalPrice={}", 
-                            productIdValue, productName, brandName, imageUrl, currentPrice, originalPrice);
-                    
-                    // imageUrl이 유효한지 확인
                     if (imageUrl != null && !imageUrl.equals("null") && !imageUrl.isEmpty()) {
+                        // Redis에 저장 (가상피팅용)
+                        String redisKey = "product_url_" + productId.trim();
+                        redisTemplate.opsForValue().set(redisKey, imageUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                        
                         com.thefirsttake.app.chat.dto.response.ProductInfo productInfo = com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
                             .productId(productIdValue)
                             .productUrl(imageUrl)
                             .build();
                         
-                        log.info("✅ 상품 정보 생성 성공: productId={}, imageUrl={}", productIdValue, imageUrl);
+                        log.info("✅ 상품 정보 검색 및 Redis 저장 성공: productId={}, productUrl={}", productIdValue, imageUrl);
                         return productInfo;
-                    } else {
-                        log.warn("❌ 상품 이미지 URL이 없습니다: productId={}, imageUrl={}", productIdValue, imageUrl);
                     }
                 }
-            } else {
-                log.warn("상품 검색 API 실패: productId={}, success={}", productId, response != null ? response.get("success") : "null");
             }
             
         } catch (Exception e) {
-            log.error("상품 검색 API 호출 실패: productId={}, error={}", productId, e.getMessage(), e);
+            log.error("상품 검색 중 오류 발생: productId={}, error={}", productId, e.getMessage(), e);
         }
         
         return null;
