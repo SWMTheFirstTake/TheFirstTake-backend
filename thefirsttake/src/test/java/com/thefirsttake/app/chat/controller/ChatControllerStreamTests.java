@@ -14,6 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -40,6 +41,9 @@ class ChatControllerStreamTests {
     @MockBean private RestTemplate restTemplate;
     @MockBean private RedisTemplate<String, String> redisTemplate;
     @MockBean private ChatStreamOrchestrationService chatStreamOrchestrationService;
+    @MockBean private WebClient.Builder webClientBuilder;
+    @MockBean private SSEConnectionService sseConnectionService;
+    @MockBean private MessageStorageService messageStorageService;
 
     @Test
     @DisplayName("GET /api/chat/rooms/messages/stream returns 200")
