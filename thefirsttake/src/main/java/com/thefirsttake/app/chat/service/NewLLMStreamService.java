@@ -416,15 +416,38 @@ public class NewLLMStreamService {
                     
                     if (imageUrl != null && !imageUrl.equals("null") && !imageUrl.isEmpty()) {
                         // Redis에 저장 (가상피팅용)
-                        String redisKey = "product_url_" + productId.trim();
-                        redisTemplate.opsForValue().set(redisKey, imageUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                        String fittingRedisKey = "product_url_" + productId.trim();
+                        redisTemplate.opsForValue().set(fittingRedisKey, imageUrl.trim(), 36000, java.util.concurrent.TimeUnit.SECONDS);
+                        
+                        // Redis에 저장 (프론트엔드 API용)
+                        String productInfoRedisKey = "product_id:" + productId.trim();
+                        Map<String, Object> productInfoMap = new HashMap<>();
+                        productInfoMap.put("product_id", productIdValue);
+                        productInfoMap.put("product_name", String.valueOf(data.get("product_name")));
+                        productInfoMap.put("brand_name", String.valueOf(data.get("brand_name")));
+                        productInfoMap.put("current_price", data.get("current_price"));
+                        productInfoMap.put("original_price", data.get("original_price"));
+                        productInfoMap.put("image_url", imageUrl);
+                        productInfoMap.put("main_category", String.valueOf(data.get("main_category")));
+                        productInfoMap.put("sub_category", data.get("sub_category"));
+                        productInfoMap.put("style_tags", data.get("style_tags"));
+                        productInfoMap.put("tpo_tags", data.get("tpo_tags"));
+                        productInfoMap.put("fit", String.valueOf(data.get("fit")));
+                        
+                        try {
+                            String productInfoJson = OBJECT_MAPPER.writeValueAsString(productInfoMap);
+                            redisTemplate.opsForValue().set(productInfoRedisKey, productInfoJson, 36000, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            log.warn("상품 정보 JSON 직렬화 실패: productId={}, error={}", productId, e.getMessage());
+                        }
                         
                         com.thefirsttake.app.chat.dto.response.ProductInfo productInfo = com.thefirsttake.app.chat.dto.response.ProductInfo.builder()
                             .productId(productIdValue)
                             .productUrl(imageUrl)
                             .build();
                         
-                        log.info("✅ 상품 정보 검색 및 Redis 저장 성공: productId={}, productUrl={}", productIdValue, imageUrl);
+                        log.info("✅ 상품 정보 검색 및 Redis 저장 성공: productId={}, productUrl={}, fittingKey={}, productInfoKey={}", 
+                                productIdValue, imageUrl, fittingRedisKey, productInfoRedisKey);
                         return productInfo;
                     }
                 }
