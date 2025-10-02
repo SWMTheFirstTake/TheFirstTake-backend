@@ -180,20 +180,41 @@ public class ProductCacheService {
     
     /**
      * Redis에서 상품 정보 조회
-     * @param productId 상품 ID
+     * @param productId 상품 ID (색상 정보 포함 가능: "2711142" 또는 "2711142_블랙")
      * @return 상품 정보 Map (없으면 null)
      */
     public Map<String, Object> getProductInfo(String productId) {
         try {
+            // 1. 정확한 키로 먼저 시도 (색상 정보가 포함된 경우)
             String cacheKey = "product_id:" + productId;
             String productInfoJson = redisTemplate.opsForValue().get(cacheKey);
             
             if (productInfoJson != null) {
+                log.debug("✅ 정확한 키로 상품 조회 성공: {}", cacheKey);
                 return objectMapper.readValue(productInfoJson, Map.class);
             }
             
+            // 2. 색상 정보가 없는 경우 패턴 매칭으로 찾기
+            String pattern = "product_id:" + productId + "_*";
+            var keys = redisTemplate.keys(pattern);
+            
+            if (keys != null && !keys.isEmpty()) {
+                // 첫 번째 매칭된 키 사용 (동일 상품의 첫 번째 색상)
+                String firstKey = keys.iterator().next();
+                productInfoJson = redisTemplate.opsForValue().get(firstKey);
+                
+                if (productInfoJson != null) {
+                    log.info("✅ 패턴 매칭으로 상품 조회 성공: {} -> {}", productId, firstKey);
+                    return objectMapper.readValue(productInfoJson, Map.class);
+                }
+            }
+            
+            log.warn("⚠️ 상품 정보를 찾을 수 없음: productId={}, pattern={}", productId, pattern);
+            
         } catch (JsonProcessingException e) {
             log.error("❌ 상품 정보 역직렬화 실패: productId={}, error={}", productId, e.getMessage());
+        } catch (Exception e) {
+            log.error("❌ 상품 정보 조회 중 오류: productId={}, error={}", productId, e.getMessage(), e);
         }
         
         return null;
