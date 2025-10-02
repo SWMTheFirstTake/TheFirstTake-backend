@@ -127,10 +127,11 @@ public class ProductCacheService {
     
     /**
      * 캐싱할 상품 정보 추출
-     * - product_name
-     * - comprehensive_description  
-     * - style_tags
-     * - tpo_tags
+     * AI 서버 응답의 모든 필드를 추출하여 저장
+     * - 기본 정보: product_name, comprehensive_description, product_id
+     * - 태그 정보: style_tags, tpo_tags
+     * - 가격 정보: original_price, current_price
+     * - 추가 정보: fit, image_url, brand_name, main_category, sub_category 등
      */
     private Map<String, Object> extractProductInfo(Map<String, Object> item) {
         Map<String, Object> productInfo = new HashMap<>();
@@ -143,6 +144,16 @@ public class ProductCacheService {
                     // product_name 추출
                     if (products.containsKey("product_name")) {
                         productInfo.put("product_name", products.get("product_name"));
+                    }
+                    
+                    // brand_name 추출
+                    if (products.containsKey("brand_name")) {
+                        productInfo.put("brand_name", products.get("brand_name"));
+                    }
+                    
+                    // main_category 추출
+                    if (products.containsKey("main_category")) {
+                        productInfo.put("main_category", products.get("main_category"));
                     }
                     
                     // comprehensive_description 추출 (captions > comprehensive_description)
@@ -168,8 +179,54 @@ public class ProductCacheService {
                     if (productSkus.containsKey("tpo_tags")) {
                         productInfo.put("tpo_tags", productSkus.get("tpo_tags"));
                     }
+                    
+                    // fit 추출
+                    if (productSkus.containsKey("fit")) {
+                        productInfo.put("fit", productSkus.get("fit"));
+                    }
+                    
+                    // original_price 추출
+                    if (productSkus.containsKey("original_price")) {
+                        productInfo.put("original_price", productSkus.get("original_price"));
+                    }
+                    
+                    // current_price 추출
+                    if (productSkus.containsKey("current_price")) {
+                        productInfo.put("current_price", productSkus.get("current_price"));
+                    }
+                    
+                    // image_url 추출
+                    if (productSkus.containsKey("image_url")) {
+                        productInfo.put("image_url", productSkus.get("image_url"));
+                    }
+                    
+                    // sub_category 추출
+                    if (productSkus.containsKey("sub_category")) {
+                        productInfo.put("sub_category", productSkus.get("sub_category"));
+                    }
+                    
+                    // product_id 추출
+                    if (productSkus.containsKey("product_id")) {
+                        productInfo.put("product_id", productSkus.get("product_id"));
+                    }
                 }
             }
+            
+            // 최상위 레벨에서도 필드 추출 (AI 서버 응답 구조가 다를 수 있음)
+            String[] topLevelFields = {
+                "product_name", "brand_name", "main_category", "sub_category",
+                "comprehensive_description", "style_tags", "tpo_tags", "fit",
+                "original_price", "current_price", "image_url", "product_id"
+            };
+            
+            for (String field : topLevelFields) {
+                if (item.containsKey(field) && !productInfo.containsKey(field)) {
+                    productInfo.put(field, item.get(field));
+                }
+            }
+            
+            log.debug("✅ 상품 정보 추출 완료: 필드 수={}, 필드 목록={}", 
+                     productInfo.size(), productInfo.keySet());
             
         } catch (Exception e) {
             log.error("❌ 상품 정보 추출 중 오류: {}", e.getMessage(), e);
