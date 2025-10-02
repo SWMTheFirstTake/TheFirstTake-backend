@@ -42,7 +42,7 @@ jpa:
             client-id: "client-id"
             client-secret: "client-secret"
             # redirect-uri: "http://172.16.101.234:3000/api/auth/callback/kakao"
-            redirect-uri: "https://the-second-take.com/api/auth/callback/kakao"  # 기존 프로덕션 값 (보존)
+            redirect-uri: "https://the-second-take.com/api/auth/kakao/callback"  # 기존 프로덕션 값 (보존)
             # redirect-uri: "https://the-first-take.com/api/auth/callback/kakao"
             # redirect-uri: "http://localhost:8000/api/auth/kakao/callback"
 #            redirect-uri: "http://localhost:3000/api/auth/callback/kakao"
