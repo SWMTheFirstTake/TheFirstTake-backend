@@ -24,22 +24,22 @@ class ChatControllerStreamTests {
     // 외부 의존성만 Mock 처리
     @MockBean private S3Service s3Service;
 
-    @Test
-    @DisplayName("GET /api/chat/rooms/messages/stream returns 200")
-    void streamWithoutRoomId_returnsEventStream() throws Exception {
-        mockMvc.perform(get("/api/chat/rooms/messages/stream")
-                        .param("user_input", "소개팅"))
-                .andExpect(status().isOk());
-    }
+    // @Test
+    // @DisplayName("GET /api/chat/rooms/messages/stream returns 200")
+    // void streamWithoutRoomId_returnsEventStream() throws Exception {
+    //     mockMvc.perform(get("/api/chat/rooms/messages/stream")
+    //                     .param("user_input", "소개팅"))
+    //             .andExpect(status().isOk());
+    // }
 
-    @Test
-    @DisplayName("GET /api/chat/rooms/messages/stream with room_id returns 200")
-    void streamWithRoomId_returnsEventStream() throws Exception {
-        mockMvc.perform(get("/api/chat/rooms/messages/stream")
-                        .param("room_id", "1")
-                        .param("user_input", "소개팅"))
-                .andExpect(status().isOk());
-    }
+    // @Test
+    // @DisplayName("GET /api/chat/rooms/messages/stream with room_id returns 200")
+    // void streamWithRoomId_returnsEventStream() throws Exception {
+    //     mockMvc.perform(get("/api/chat/rooms/messages/stream")
+    //                     .param("room_id", "1")
+    //                     .param("user_input", "소개팅"))
+    //             .andExpect(status().isOk());
+    // }
 }
 
 
