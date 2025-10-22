@@ -30,7 +30,7 @@ public class NewLLMStreamService {
     
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     
-    @Value("${llm.server.new-stream-url:https://the-second-take.com/langgraph/llm_search/stream}")
+    @Value("${llm.server.new-stream-url:https://the-first-take.com/langgraph/llm_search/stream}")
     private String newLlmStreamUrl;
     
     private final WebClient.Builder webClientBuilder;
@@ -402,7 +402,8 @@ public class NewLLMStreamService {
             log.info("상품 검색 시작: productId={}", productId);
             
             // ProductSearchService를 사용하여 상품 검색
-            String searchUrl = "https://the-second-take.com/search/" + productId;
+            // String searchUrl = "https://the-second-take.com/search/" + productId;
+            String searchUrl = "https://the-first-take.com/search/" + productId;
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.getForObject(searchUrl, Map.class);
             

@@ -192,7 +192,7 @@ TheFirstTake는 AI 기반의 개인화된 패션 큐레이션 서비스입니다
 function handleKakaoLogin() {
     const kakaoAuthURL = 'https://kauth.kakao.com/oauth/authorize?' +
         'client_id=YOUR_KAKAO_CLIENT_ID&' +
-        'redirect_uri=https://the-second-take.com/api/auth/kakao/callback&' +
+        'redirect_uri=https://the-first-take.com/api/auth/kakao/callback&' +
         'response_type=code';
     
     window.location.href = kakaoAuthURL;
@@ -879,8 +879,8 @@ SSE 이벤트 전송 (room, connect, content, complete, error)
 3. **플랫폼 및 리다이렉트 URI 설정**
    - "제품 설정" → "카카오 로그인" 활성화
    - "Redirect URI" 등록:
-     - 개발: `https://the-second-take.com/api/auth/kakao/callback`
-     - 운영: `https://the-second-take.com/api/auth/kakao/callback`
+     - 개발: `https://the-first-take.com/api/auth/kakao/callback`
+     - 운영: `https://the-first-take.com/api/auth/kakao/callback`
 
 ### 2. GitHub Actions Secrets 설정
 
@@ -889,7 +889,7 @@ GitHub 저장소의 Settings → Secrets and variables → Actions에서 다음 
 ```
 KAKAO_CLIENT_ID=your_kakao_rest_api_key
 KAKAO_CLIENT_SECRET=your_kakao_client_secret
-KAKAO_REDIRECT_URI=https://the-second-take.com/api/auth/kakao/callback
+KAKAO_REDIRECT_URI=https://the-first-take.com/api/auth/kakao/callback
 JWT_SECRET=your_jwt_secret_key_min_256_bits
 ```
 
