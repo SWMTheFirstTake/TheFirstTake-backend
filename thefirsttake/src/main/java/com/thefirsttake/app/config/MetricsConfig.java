@@ -174,6 +174,7 @@ public class MetricsConfig {
     // ===== SSE API 전체 응답 시간 메트릭 =====
     
     @Bean
+    @Qualifier("sseApiTotalResponseTimer")
     public Timer sseApiTotalResponseTimer(MeterRegistry meterRegistry) {
         return Timer.builder("sse_api_total_response_duration")
                 .description("Total SSE API response time from start to complete")
@@ -181,6 +182,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("sseApiTotalCounter")
     public Counter sseApiTotalCounter(MeterRegistry meterRegistry) {
         return Counter.builder("sse_api_total_requests")
                 .description("Total number of SSE API requests")

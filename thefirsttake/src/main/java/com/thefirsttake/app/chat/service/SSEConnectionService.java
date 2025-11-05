@@ -67,6 +67,9 @@ public class SSEConnectionService {
             // 연결 메트릭 증가
             sseConnectionCounter.increment();
             
+            // 활성 연결 수 증가
+            com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().incrementAndGet();
+            
             log.info("SSE 연결 초기화 완료: connectionId={}, roomId={}", connectionId, finalRoomId);
             
         } catch (IOException e) {
@@ -201,6 +204,9 @@ public class SSEConnectionService {
                 
                 // 연결 해제 메트릭 증가
                 sseDisconnectionCounter.increment();
+                
+                // 활성 연결 수 감소
+                com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
             } else {
                 log.warn("SSE 연결이 이미 종료됨: connectionId={}", connectionId);
             }

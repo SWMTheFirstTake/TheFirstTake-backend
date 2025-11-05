@@ -49,6 +49,10 @@ public class SseInitializer {
         Timer.Sample totalResponseTimer = Timer.start();
 
         sseConnectionCounter.increment();
+        
+        // 활성 연결 수 증가
+        com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().incrementAndGet();
+        
         Timer.Sample connectionTimer = Timer.start();
 
         CompletableFuture.delayedExecutor(120, TimeUnit.SECONDS).execute(() -> {
@@ -59,6 +63,8 @@ public class SseInitializer {
                     connectionTimer.stop(sseConnectionDurationTimer);
                     totalResponseTimer.stop(sseApiTotalResponseTimer);
                     sseDisconnectionCounter.increment();
+                    // 활성 연결 수 감소
+                    com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
                     hooks.onEnd(connectionCreationTimer, connectionLifetimeTimer, "force_timeout", connectionId);
                 }
                 try { emitter.complete(); } catch (Exception e) { log.warn("강제 종료 중 오류: {}", e.getMessage()); }
@@ -71,6 +77,8 @@ public class SseInitializer {
                 connectionTimer.stop(sseConnectionDurationTimer);
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseDisconnectionCounter.increment();
+                // 활성 연결 수 감소
+                com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
                 hooks.onEnd(connectionCreationTimer, connectionLifetimeTimer, "completion", connectionId);
             }
         });
@@ -80,6 +88,8 @@ public class SseInitializer {
                 connectionTimer.stop(sseConnectionDurationTimer);
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseDisconnectionCounter.increment();
+                // 활성 연결 수 감소
+                com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
                 hooks.onEnd(connectionCreationTimer, connectionLifetimeTimer, "timeout", connectionId);
             }
         });
@@ -89,6 +99,8 @@ public class SseInitializer {
                 connectionTimer.stop(sseConnectionDurationTimer);
                 totalResponseTimer.stop(sseApiTotalResponseTimer);
                 sseDisconnectionCounter.increment();
+                // 활성 연결 수 감소
+                com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
                 hooks.onEnd(connectionCreationTimer, connectionLifetimeTimer, "error", connectionId);
             }
         });
