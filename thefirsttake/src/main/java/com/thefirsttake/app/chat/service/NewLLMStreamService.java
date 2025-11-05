@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
@@ -39,19 +40,22 @@ public class NewLLMStreamService {
     private final RestTemplate restTemplate;
     private final ProductSearchService productSearchService;
     private final RedisTemplate<String, String> redisTemplate;
+    private final StreamMetricsService streamMetricsService;
     
     public NewLLMStreamService(WebClient.Builder webClientBuilder,
                               SSEConnectionService sseConnectionService,
                               MessageStorageService messageStorageService,
                               RestTemplate restTemplate,
                               ProductSearchService productSearchService,
-                              @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate) {
+                              @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate,
+                              StreamMetricsService streamMetricsService) {
         this.webClientBuilder = webClientBuilder;
         this.sseConnectionService = sseConnectionService;
         this.messageStorageService = messageStorageService;
         this.restTemplate = restTemplate;
         this.productSearchService = productSearchService;
         this.redisTemplate = redisTemplate;
+        this.streamMetricsService = streamMetricsService;
     }
     
     /**
@@ -90,33 +94,55 @@ public class NewLLMStreamService {
             
             log.info("새로운 LLM 서버 스트림 호출 시작: roomId={}", roomId);
             
-            // WebClient로 스트림 호출
-            webClientBuilder.build().post()
-                .uri(newLlmStreamUrl)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(requestData)
-                .retrieve()
-                .bodyToFlux(String.class)
-                .doOnNext(chunk -> {
-                    if (cancelled.get()) return;
-                    
-                    try {
-                        processStreamChunk(chunk, emitter, expertTexts, expertProducts, roomId, sessionId, 
-                                         expertCompleted, currentExpertIndex, completedExpertCount);
-                    } catch (Exception e) {
-                        log.warn("스트림 청크 처리 오류: chunk={}, error={}", chunk, e.getMessage());
-                    }
-                })
-                .doOnError(error -> {
-                    log.error("새로운 LLM 스트림 호출 실패: error={}", error.getMessage(), error);
-                    if (!cancelled.get()) {
-                        sseConnectionService.sendErrorEvent(emitter, "새로운 LLM 스트림 호출 실패: " + error.getMessage(), null);
-                    }
-                })
-                .doOnComplete(() -> {
-                    log.info("새로운 LLM 스트림 완료: roomId={}", roomId);
-                })
-                .blockLast(); // 스트림 완료까지 대기
+            // LLM API 호출 메트릭 시작 (전체 요청에 대한 메트릭)
+            var timerSample = streamMetricsService.startLlmApiCall("new_llm_stream");
+            java.util.concurrent.atomic.AtomicInteger statusCode = new java.util.concurrent.atomic.AtomicInteger(200);
+            java.util.concurrent.atomic.AtomicBoolean success = new java.util.concurrent.atomic.AtomicBoolean(true);
+            
+            try {
+                // WebClient로 스트림 호출
+                webClientBuilder.build().post()
+                    .uri(newLlmStreamUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestData)
+                    .retrieve()
+                    .bodyToFlux(String.class)
+                    .doOnNext(chunk -> {
+                        if (cancelled.get()) return;
+                        
+                        try {
+                            processStreamChunk(chunk, emitter, expertTexts, expertProducts, roomId, sessionId, 
+                                             expertCompleted, currentExpertIndex, completedExpertCount);
+                        } catch (Exception e) {
+                            log.warn("스트림 청크 처리 오류: chunk={}, error={}", chunk, e.getMessage());
+                        }
+                    })
+                    .doOnError(error -> {
+                        log.error("새로운 LLM 스트림 호출 실패: error={}", error.getMessage(), error);
+                        statusCode.set(500);
+                        success.set(false);
+                        if (!cancelled.get()) {
+                            sseConnectionService.sendErrorEvent(emitter, "새로운 LLM 스트림 호출 실패: " + error.getMessage(), null);
+                        }
+                    })
+                    .doOnComplete(() -> {
+                        log.info("새로운 LLM 스트림 완료: roomId={}", roomId);
+                    })
+                    .onErrorResume(error -> {
+                        statusCode.set(500);
+                        success.set(false);
+                        return Flux.empty();
+                    })
+                    .blockLast(); // 스트림 완료까지 대기
+            } catch (Exception e) {
+                log.error("새로운 LLM 스트림 처리 중 예외 발생: error={}", e.getMessage(), e);
+                statusCode.set(500);
+                success.set(false);
+            } finally {
+                // LLM API 호출 메트릭 종료
+                String responseBody = finalText.toString();
+                streamMetricsService.endLlmApiCall(timerSample, "new_llm_stream", statusCode.get(), responseBody, success.get());
+            }
             
             // 모든 전문가 결과를 누적
             for (String expertType : expertList) {

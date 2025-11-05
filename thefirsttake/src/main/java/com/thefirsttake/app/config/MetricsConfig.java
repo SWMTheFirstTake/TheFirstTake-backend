@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -51,6 +52,7 @@ public class MetricsConfig {
     // ===== 채팅 관련 메트릭 =====
     
     @Bean
+    @Qualifier("sseConnectionCounter")
     public Counter sseConnectionCounter(MeterRegistry meterRegistry) {
         return Counter.builder("sse_connections_total")
                 .description("Total number of SSE connections")
@@ -58,6 +60,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("sseDisconnectionCounter")
     public Counter sseDisconnectionCounter(MeterRegistry meterRegistry) {
         return Counter.builder("sse_disconnections_total")
                 .description("Total number of SSE disconnections")
@@ -65,6 +68,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("sseConnectionDurationTimer")
     public Timer sseConnectionDurationTimer(MeterRegistry meterRegistry) {
         return Timer.builder("sse_connection_duration")
                 .description("Duration of SSE connections")
@@ -72,6 +76,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("llmApiCallCounter")
     public Counter llmApiCallCounter(MeterRegistry meterRegistry) {
         return Counter.builder("llm_api_calls_total")
                 .description("Total number of LLM API calls")
@@ -79,6 +84,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("llmApiSuccessCounter")
     public Counter llmApiSuccessCounter(MeterRegistry meterRegistry) {
         return Counter.builder("llm_api_success_total")
                 .description("Total number of successful LLM API calls")
@@ -86,6 +92,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("llmApiFailureCounter")
     public Counter llmApiFailureCounter(MeterRegistry meterRegistry) {
         return Counter.builder("llm_api_failure_total")
                 .description("Total number of failed LLM API calls")
@@ -93,6 +100,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("llmApiResponseTimer")
     public Timer llmApiResponseTimer(MeterRegistry meterRegistry) {
         return Timer.builder("llm_api_response_duration")
                 .description("LLM API response time")
@@ -100,6 +108,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("productSearchApiCallCounter")
     public Counter productSearchApiCallCounter(MeterRegistry meterRegistry) {
         return Counter.builder("product_search_api_calls_total")
                 .description("Total number of product search API calls")
@@ -107,6 +116,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("productSearchApiSuccessCounter")
     public Counter productSearchApiSuccessCounter(MeterRegistry meterRegistry) {
         return Counter.builder("product_search_api_success_total")
                 .description("Total number of successful product search API calls")
@@ -114,6 +124,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("productSearchApiFailureCounter")
     public Counter productSearchApiFailureCounter(MeterRegistry meterRegistry) {
         return Counter.builder("product_search_api_failure_total")
                 .description("Total number of failed product search API calls")
@@ -121,6 +132,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("productSearchApiResponseTimer")
     public Timer productSearchApiResponseTimer(MeterRegistry meterRegistry) {
         return Timer.builder("product_search_api_response_duration")
                 .description("Product search API response time")
@@ -130,6 +142,7 @@ public class MetricsConfig {
     // ===== LLM API 전문가별 메트릭 =====
     
     @Bean
+    @Qualifier("llmApiCallCounterByExpert")
     public Counter llmApiCallCounterByExpert(MeterRegistry meterRegistry) {
         return Counter.builder("llm_api_calls_by_expert_total")
                 .description("Total number of LLM API calls by expert")
