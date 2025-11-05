@@ -31,13 +31,28 @@ public class SSEConnectionService {
     private final Counter sseConnectionCounter;
     private final Counter sseDisconnectionCounter;
     private final Timer sseConnectionDurationTimer;
+    private final Counter sseApiTotalCounter;
+    private final Timer sseApiTotalResponseTimer;
+    private final Counter sseApiSuccessCounter;
+    private final Counter sseApiFailureCounter;
+    
+    // 연결별 타이머 추적 (SSE API 응답 시간 측정용)
+    private final Map<String, io.micrometer.core.instrument.Timer.Sample> connectionTimerMap = new ConcurrentHashMap<>();
     
     public SSEConnectionService(@Qualifier("sseConnectionCounter") Counter sseConnectionCounter,
                                @Qualifier("sseDisconnectionCounter") Counter sseDisconnectionCounter,
-                               @Qualifier("sseConnectionDurationTimer") Timer sseConnectionDurationTimer) {
+                               @Qualifier("sseConnectionDurationTimer") Timer sseConnectionDurationTimer,
+                               @Qualifier("sseApiTotalCounter") Counter sseApiTotalCounter,
+                               @Qualifier("sseApiTotalResponseTimer") Timer sseApiTotalResponseTimer,
+                               @Qualifier("sseApiSuccessCounter") Counter sseApiSuccessCounter,
+                               @Qualifier("sseApiFailureCounter") Counter sseApiFailureCounter) {
         this.sseConnectionCounter = sseConnectionCounter;
         this.sseDisconnectionCounter = sseDisconnectionCounter;
         this.sseConnectionDurationTimer = sseConnectionDurationTimer;
+        this.sseApiTotalCounter = sseApiTotalCounter;
+        this.sseApiTotalResponseTimer = sseApiTotalResponseTimer;
+        this.sseApiSuccessCounter = sseApiSuccessCounter;
+        this.sseApiFailureCounter = sseApiFailureCounter;
     }
     
     // SSE 연결 상태 추적을 위한 맵
@@ -53,6 +68,11 @@ public class SSEConnectionService {
      */
     public SseEmitter initializeConnection(String connectionId, SseEmitter emitter, String roomId, String finalRoomId) {
         try {
+            // SSE API 메트릭 시작
+            sseApiTotalCounter.increment();
+            io.micrometer.core.instrument.Timer.Sample apiTimer = io.micrometer.core.instrument.Timer.start();
+            connectionTimerMap.put(connectionId, apiTimer);
+            
             // 신규 방 생성 시 room 이벤트 먼저 전송
             if (roomId == null) {
                 log.info("신규 방 생성 감지 - room 이벤트 전송: roomId={}", finalRoomId);
@@ -74,6 +94,12 @@ public class SSEConnectionService {
             
         } catch (IOException e) {
             log.warn("초기 SSE 메시지 전송 실패: connectionId={}, error={}", connectionId, e.getMessage(), e);
+            // 실패 시 메트릭 처리
+            io.micrometer.core.instrument.Timer.Sample apiTimer = connectionTimerMap.remove(connectionId);
+            if (apiTimer != null) {
+                apiTimer.stop(sseApiTotalResponseTimer);
+                sseApiFailureCounter.increment();
+            }
         }
         
         return emitter;
@@ -202,6 +228,13 @@ public class SSEConnectionService {
                 log.info("SSE 연결 완료: connectionId={}", connectionId);
                 emitter.complete();
                 
+                // SSE API 응답 시간 메트릭 종료 (성공)
+                io.micrometer.core.instrument.Timer.Sample apiTimer = connectionTimerMap.remove(connectionId);
+                if (apiTimer != null) {
+                    apiTimer.stop(sseApiTotalResponseTimer);
+                    sseApiSuccessCounter.increment();
+                }
+                
                 // 연결 해제 메트릭 증가
                 sseDisconnectionCounter.increment();
                 
@@ -209,10 +242,21 @@ public class SSEConnectionService {
                 com.thefirsttake.app.config.MetricsConfig.getGlobalActiveConnections().decrementAndGet();
             } else {
                 log.warn("SSE 연결이 이미 종료됨: connectionId={}", connectionId);
+                // 이미 종료된 경우에도 타이머 정리
+                io.micrometer.core.instrument.Timer.Sample apiTimer = connectionTimerMap.remove(connectionId);
+                if (apiTimer != null) {
+                    apiTimer.stop(sseApiTotalResponseTimer);
+                }
             }
             
         } catch (Exception e) {
             log.error("SSE 연결 완료 처리 실패: connectionId={}, error={}", connectionId, e.getMessage(), e);
+            // 에러 시에도 메트릭 처리
+            io.micrometer.core.instrument.Timer.Sample apiTimer = connectionTimerMap.remove(connectionId);
+            if (apiTimer != null) {
+                apiTimer.stop(sseApiTotalResponseTimer);
+                sseApiFailureCounter.increment();
+            }
         }
     }
     

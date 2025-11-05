@@ -190,6 +190,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("sseApiSuccessCounter")
     public Counter sseApiSuccessCounter(MeterRegistry meterRegistry) {
         return Counter.builder("sse_api_success_total")
                 .description("Total number of successful SSE API completions")
@@ -197,6 +198,7 @@ public class MetricsConfig {
     }
     
     @Bean
+    @Qualifier("sseApiFailureCounter")
     public Counter sseApiFailureCounter(MeterRegistry meterRegistry) {
         return Counter.builder("sse_api_failure_total")
                 .description("Total number of failed SSE API requests")
