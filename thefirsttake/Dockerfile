@@ -7,7 +7,7 @@
 # RUN ./gradlew clean build -x test
 
 # # Runtime stage  
-# FROM eclipse-temurin:21-jdk-slim
+# FROM eclipse-temurin:21-jdk-jammy
 # WORKDIR /app
 
 # # Install curl for health check
@@ -21,7 +21,7 @@
 #     CMD curl -f http://localhost:8000/actuator/health || exit 1
 
 # CMD ["java", "-jar", "app.jar"]
-FROM eclipse-temurin:21-jdk-slim
+FROM eclipse-temurin:21-jdk-jammy
 
 WORKDIR /app
 
