@@ -71,6 +71,7 @@ public class ChatController {
     
     // 새로운 스트림 처리 서비스들
     private final ChatStreamOrchestrationService chatStreamOrchestrationService;
+    private final com.thefirsttake.app.chat.service.NewLLMStreamService newLLMStreamService;
     
     
     public ChatController(ChatCurationOrchestrationService chatCurationOrchestrationService,
@@ -85,7 +86,8 @@ public class ChatController {
                          SseInitializer sseInitializer,
                          RestTemplate restTemplate,
                          @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate,
-                         ChatStreamOrchestrationService chatStreamOrchestrationService) {
+                         ChatStreamOrchestrationService chatStreamOrchestrationService,
+                         com.thefirsttake.app.chat.service.NewLLMStreamService newLLMStreamService) {
         this.chatCurationOrchestrationService = chatCurationOrchestrationService;
         this.chatQueueService = chatQueueService;
         this.userSessionService = userSessionService;
@@ -99,6 +101,7 @@ public class ChatController {
         this.restTemplate = restTemplate;
         this.redisTemplate = redisTemplate;
         this.chatStreamOrchestrationService = chatStreamOrchestrationService;
+        this.newLLMStreamService = newLLMStreamService;
     }
     
     @Value("${llm.server.expert-stream-url}")
@@ -1288,6 +1291,110 @@ public class ChatController {
         } catch (Exception e) {
             log.error("새로운 LLM 스트림 채팅 처리 실패: sessionId={}, error={}", session.getId(), e.getMessage(), e);
             return createErrorSseEmitter("새로운 LLM 스트림 처리에 실패했습니다: " + e.getMessage());
+        }
+    }
+
+    @Operation(
+        summary = "상품 설명 조회 (product_id 포함)",
+        description = """
+            특정 상품 ID를 포함하여 상품 설명을 조회합니다.
+            클라이언트는 로컬스토리지에 저장된 product_id를 사용하여 이 API를 호출할 수 있습니다.
+            product_id가 request body에 포함되어 /langgraph/fashion_search API로 전달되고,
+            message type의 content만 추출하여 반환합니다.
+            """,
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "상품 설명 조회 성공",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class),
+                    examples = @ExampleObject(
+                        name = "성공 응답",
+                        summary = "상품 설명",
+                        value = """
+                        {
+                          "status": "success",
+                          "message": "요청 성공",
+                          "data": "이 상품은 무드인사이드의 체크 셔츠입니다. 잔잔한 배색 체크 패턴과 전면부 더블 스티치가 매력적인 제품으로, 자연스러운 링클감이 돋보이는 얇은 코튼 소재로 제작되었습니다."
+                        }
+                        """
+                    )
+                )
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "잘못된 요청 (필수 파라미터 누락 등)",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class),
+                    examples = @ExampleObject(
+                        name = "오류 응답",
+                        summary = "필수 파라미터 누락",
+                        value = """
+                        {
+                          "status": "fail",
+                          "message": "product_id는 필수입니다.",
+                          "data": null
+                        }
+                        """
+                    )
+                )
+            ),
+            @ApiResponse(
+                responseCode = "500",
+                description = "서버 내부 오류",
+                content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = CommonResponse.class),
+                    examples = @ExampleObject(
+                        name = "서버 오류",
+                        summary = "예상치 못한 서버 오류",
+                        value = """
+                        {
+                          "status": "fail",
+                          "message": "상품 설명 조회 중 오류가 발생했습니다: [오류 메시지]",
+                          "data": null
+                        }
+                        """
+                    )
+                )
+            )
+        }
+    )
+    @GetMapping("/products/{productId}/description")
+    public ResponseEntity<CommonResponse> getProductDescription(
+            @Parameter(description = "상품 ID", required = true, example = "4255016_블루")
+            @PathVariable("productId") String productId,
+            @Parameter(description = "사용자 입력 (선택사항)", example = "이 상품 설명해줘")
+            @RequestParam(value = "user_input", required = false, defaultValue = "이 상품에 대해 설명해주세요") String userInput
+    ) {
+        try {
+            if (productId == null || productId.trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(CommonResponse.fail("product_id는 필수입니다."));
+            }
+            
+            log.info("상품 설명 조회 요청: productId={}, userInput={}", productId, userInput);
+            
+            // NewLLMStreamService를 통해 상품 설명 조회
+            String description = newLLMStreamService.getProductDescription(userInput, productId);
+            
+            if (description == null || description.trim().isEmpty()) {
+                log.warn("상품 설명 조회 실패: productId={}", productId);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(CommonResponse.fail("상품 설명을 조회할 수 없습니다."));
+            }
+            
+            log.info("상품 설명 조회 성공: productId={}", productId);
+            
+            // CommonResponse의 data에 content.content 문자열 그대로 담아서 반환
+            return ResponseEntity.ok(CommonResponse.success(description));
+            
+        } catch (Exception e) {
+            log.error("상품 설명 조회 중 오류: productId={}, error={}", productId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CommonResponse.fail("상품 설명 조회 중 오류가 발생했습니다: " + e.getMessage()));
         }
     }
 

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -528,5 +529,129 @@ public class NewLLMStreamService {
             case "fitting_coordinator" -> "피팅 코디네이터";
             default -> expertType;
         };
+    }
+    
+    /**
+     * 상품 설명 조회 (스트림이 아닌 일반 API)
+     * product_id를 포함하여 /langgraph/fashion_search API를 호출하고,
+     * message type의 content.content 문자열만 추출하여 반환
+     * 
+     * @param userInput 사용자 입력
+     * @param productId 상품 ID
+     * @return message type의 content.content 문자열
+     */
+    public String getProductDescription(String userInput, String productId) {
+        try {
+            // 요청 데이터 준비 (product_id 포함)
+            Map<String, Object> requestData = new HashMap<>();
+            
+            // agent_config 설정
+            Map<String, Object> agentConfig = new HashMap<>();
+            agentConfig.put("spicy_level", 0.8);
+            requestData.put("agent_config", agentConfig);
+            
+            // 메시지 설정
+            requestData.put("message", userInput);
+            
+            // 모델 설정
+            requestData.put("model", "gemini-2.0-flash-lite");
+            
+            // 스트림 토큰 활성화
+            requestData.put("stream_tokens", true);
+            
+            // 스레드 ID 및 사용자 ID (임시로 현재 시간 사용)
+            String threadId = "product_desc_" + System.currentTimeMillis();
+            requestData.put("thread_id", threadId);
+            requestData.put("user_id", threadId);
+            
+            // product_id 설정
+            if (productId != null && !productId.trim().isEmpty()) {
+                requestData.put("product_id", productId.trim());
+                log.info("상품 설명 조회 시작: productId={}, userInput={}", productId, userInput);
+            } else {
+                log.warn("product_id가 없습니다: productId={}", productId);
+                return null;
+            }
+            
+            // message type의 content.content 문자열을 저장할 변수
+            final AtomicReference<String> messageContent = new AtomicReference<>();
+            final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+            
+            // WebClient로 스트림 호출
+            webClientBuilder.build().post()
+                .uri(newLlmStreamUrl)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestData)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .doOnNext(chunk -> {
+                    // data: 접두사 제거
+                    if (chunk.startsWith("data: ")) {
+                        chunk = chunk.substring(6);
+                    }
+                    
+                    // [DONE] 체크
+                    if ("[DONE]".equals(chunk.trim())) {
+                        log.info("스트림 완료 신호 수신: productId={}", productId);
+                        latch.countDown();
+                        return;
+                    }
+                    
+                    try {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> parsed = OBJECT_MAPPER.readValue(chunk, Map.class);
+                        String type = String.valueOf(parsed.get("type"));
+                        
+                        // message type이면서 content.type이 "ai"이고 content.content가 비어있지 않은 경우만 처리
+                        if ("message".equals(type)) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> content = (Map<String, Object>) parsed.get("content");
+                            if (content != null) {
+                                // content.type이 "ai"인지 확인
+                                String contentType = String.valueOf(content.get("type"));
+                                if ("ai".equals(contentType)) {
+                                    // content.content 문자열 추출
+                                    Object contentObj = content.get("content");
+                                    if (contentObj != null) {
+                                        String contentStr = String.valueOf(contentObj);
+                                        // content.content가 비어있지 않은지 확인
+                                        if (contentStr != null && !contentStr.equals("null") && !contentStr.trim().isEmpty()) {
+                                            messageContent.set(contentStr);
+                                            log.info("상품 설명 추출 완료: productId={}, contentType={}, contentLength={}", productId, contentType, contentStr.length());
+                                            latch.countDown();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("스트림 청크 파싱 오류: chunk={}, error={}", chunk, e.getMessage());
+                    }
+                })
+                .doOnError(error -> {
+                    log.error("상품 설명 조회 실패: productId={}, error={}", productId, error.getMessage(), error);
+                    latch.countDown();
+                })
+                .doOnComplete(() -> {
+                    log.info("스트림 완료: productId={}", productId);
+                    if (messageContent.get() == null) {
+                        latch.countDown();
+                    }
+                })
+                .subscribe();
+            
+            // 최대 30초 대기
+            boolean completed = latch.await(30, java.util.concurrent.TimeUnit.SECONDS);
+            if (!completed) {
+                log.warn("상품 설명 조회 타임아웃: productId={}", productId);
+                return null;
+            }
+            
+            return messageContent.get();
+            
+        } catch (Exception e) {
+            log.error("상품 설명 조회 중 오류: productId={}, error={}", productId, e.getMessage(), e);
+            return null;
+        }
     }
 }
