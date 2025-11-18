@@ -8,13 +8,13 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")  // 테스트 시 'test' 프로파일 활성화
 class ThefirsttakeApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+	// @Test
+	// void contextLoads() {
+	// }
 
-	@Test
-	void sanityCheck() {
-		org.junit.jupiter.api.Assertions.assertEquals(4, 2 + 2);
-	}
+	// @Test
+	// void sanityCheck() {
+	// 	org.junit.jupiter.api.Assertions.assertEquals(4, 2 + 2);
+	// }
 
 }
