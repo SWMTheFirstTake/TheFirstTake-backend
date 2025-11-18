@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,6 +22,10 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+    "ai.server.host=localhost",
+    "ai.server.port=18080"
+})
 class ProductSearchServiceTests {
 
     @Autowired
@@ -42,27 +47,56 @@ class ProductSearchServiceTests {
         server = MockRestServiceServer.createServer(restTemplate);
     }
 
-    // @Test
-    // @DisplayName("ProductSearchService calls /api/v1/search and parses response")
-    // void callsSearchApiAndParsesResponse() {
-    //     String responseJson = "{\n" +
-    //             "  \"success\": true,\n" +
-    //             "  \"data\": { \"data\": [{ \"image_url\": \"https://example.com/a.jpg\" }] }\n" +
-    //             "}";
+    @Test
+    @DisplayName("extractProductImageUrls - 정상 응답에서 모든 image_url 추출")
+    void extractProductImageUrls_success() {
+        Map<String, Object> searchResult = Map.of(
+            "success", true,
+            "data", Map.of(
+                "data", java.util.List.of(
+                    Map.of("image_url", "https://a.jpg"),
+                    Map.of("image_url", "https://b.jpg")
+                )
+            )
+        );
 
-    //     String expectedUrl = String.format("http://%s:%s/search/", host, port);
-    //     server.expect(once(), requestTo(expectedUrl))
-    //             .andExpect(method(HttpMethod.POST))
-    //             .andExpect(header("Content-Type", MediaType.APPLICATION_JSON_VALUE))
-    //             .andRespond(withSuccess(responseJson, MediaType.APPLICATION_JSON));
+        var urls = productSearchService.extractProductImageUrls(searchResult);
 
-    //     Map<String, Object> result = productSearchService.searchProducts("하얀색 세미오버핏 린넨셔츠에 블랙 데님팬츠가 잘 어울려");
+        assertThat(urls).containsExactly("https://a.jpg", "https://b.jpg");
+    }
 
-    //     assertThat(result).isNotNull();
-    //     assertThat(result.get("success")).isEqualTo(true);
+    @Test
+    @DisplayName("extractProductImageUrls - invalid 입력이면 빈 리스트")
+    void extractProductImageUrls_invalid() {
+        var urls1 = productSearchService.extractProductImageUrls(null);
+        var urls2 = productSearchService.extractProductImageUrls(Map.of("success", false));
+        var urls3 = productSearchService.extractProductImageUrls(Map.of("success", true, "data", Map.of()));
 
-    //     server.verify();
-    // }
+        assertThat(urls1).isEmpty();
+        assertThat(urls2).isEmpty();
+        assertThat(urls3).isEmpty();
+    }
+
+    @Test
+    @DisplayName("ProductSearchService calls /search/ and parses response")
+    void callsSearchApiAndParsesResponse() {
+        String responseJson = """
+        { "success": true, "data": { "data": [ { "image_url": "https://example.com/a.jpg" } ] } }
+        """;
+
+        String expectedUrl = String.format("http://%s:%s/search/", host, port);
+        server.expect(once(), requestTo(expectedUrl))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Content-Type", MediaType.APPLICATION_JSON_VALUE))
+                .andRespond(withSuccess(responseJson, MediaType.APPLICATION_JSON));
+
+        Map<String, Object> result = productSearchService.searchProducts("하얀 린넨 셔츠 추천");
+
+        assertThat(result).isNotNull();
+        assertThat(result.get("success")).isEqualTo(true);
+
+        server.verify();
+    }
 }
 
 

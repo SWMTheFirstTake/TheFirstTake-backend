@@ -31,7 +31,7 @@ public class NewLLMStreamService {
     
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     
-    @Value("${llm.server.new-stream-url:https://the-first-take.com/langgraph/llm_search/stream}")
+    @Value("${llm.server.new-stream-url:https://the-first-take.com/langgraph/fashion_search/stream}")
     private String newLlmStreamUrl;
     
     private final WebClient.Builder webClientBuilder;
