@@ -1,6 +1,6 @@
 # TheFirstTake - AI 기반 패션 큐레이션 채팅 서버
 
-[📋 기획서 보기](https://docs.google.com/document/d/1wXRMFZXSbN6UP7M42D2i-N0BNuzQg8nuugPhjUqb67Y/edit?usp=sharing)
+[📋 프로젝트 소개 보기(가독성 좋은 버전)](https://outrageous-nylon-9f3.notion.site/TheFirstTake-LLM-26ed3a1c859280fea6eff5c3d35ac313)
 
 ## 🎯 프로젝트 개요
 
